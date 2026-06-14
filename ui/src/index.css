@@ -1,0 +1,382 @@
+/* ============================================================
+   CORTEX — Design System (index.css)
+   Updated to match new Dashboard Design System (Design.md)
+   Pink/Crimson accent · Light airy background · Card-based layout
+   ============================================================ */
+
+/* --- Google Fonts are loaded via index.html <link> tags --- */
+
+/* ============================================================
+   1. CSS Custom Properties (Design Tokens)
+   ============================================================ */
+
+:root {
+  /* --- Base Palette (Design.md §2) --- */
+  --bg-base: #F4F4F6;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #EDEEF3;
+  --border: #E9E9ED;
+  --border-strong: #D0D0D8;
+
+  /* --- Text (Design.md §2) --- */
+  --text-primary: #1A1A1E;
+  --text-secondary: #8C8C99;
+  --text-muted: #B8B8C2;
+
+  /* --- Accent — Pink / Crimson (Design.md §2) --- */
+  --accent: #E8326E;
+  --accent-soft: #FDE8EF;
+  --accent-hover: #D12A60;
+  --accent-bg: #FBD9E4;
+
+  /* --- Primary Dark — Near-black navy --- */
+  --primary-dark: #1E1E24;
+
+  /* --- Status Colors --- */
+  --green: #3DCB6C;
+  --yellow: #F59E0B;
+  --red: #F04438;
+  --blue: #3B82F6;
+  --purple: #A855F7;
+  --orange: #F97316;
+
+  /* --- Typography --- */
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* --- Spacing Scale (8px base) --- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+
+  /* --- Border Radius (Design.md §4.2) --- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-full: 9999px;
+
+  /* --- Duration Scale --- */
+  --dur-fast: 100ms;
+  --dur-base: 150ms;
+  --dur-slow: 250ms;
+  --dur-enter: 350ms;
+
+  /* --- Shadows --- */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.12);
+
+  /* --- Layout --- */
+  --sidebar-width: 220px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 52px;
+  --statusbar-height: 36px;
+}
+
+/* --- Dark Mode Overrides --- */
+[data-theme="dark"] {
+  --bg-base: #0F1017;
+  --bg-surface: #16181F;
+  --bg-elevated: #1E2029;
+  --border: #252733;
+  --border-strong: #3A3D4E;
+  --text-primary: #E8E9F3;
+  --text-secondary: #8B8FA8;
+  --text-muted: #5A5D73;
+  --accent-soft: #3D1426;
+  --accent-bg: #2D0F1C;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+
+/* ============================================================
+   2. CSS Reset & Global Styles
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--bg-base);
+  overflow: hidden;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color var(--dur-fast) ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+button {
+  font-family: var(--font-display);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Button Base */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--r-md);
+  font-size: 14px;
+  font-weight: 600;
+  transition: all var(--dur-fast) ease;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.btn.full-width {
+  width: 100%;
+}
+.btn.primary {
+  background: var(--primary-dark);
+  color: #fff;
+  border: none;
+}
+.btn.primary:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+.btn.secondary {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+.btn.secondary:not(:disabled):hover {
+  background: var(--border);
+}
+.btn.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:not(:disabled):hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+input, textarea, select {
+  font-family: var(--font-display);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+ul, ol {
+  list-style: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+
+/* ============================================================
+   3. Typography Utilities
+   ============================================================ */
+
+.page-title {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.body-text {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.small {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.stat {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.0;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.text-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+
+/* ============================================================
+   4. Keyframe Animations
+   ============================================================ */
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slideInTop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressFill {
+  from { width: 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 4px rgba(232, 50, 110, 0.2); }
+  50% { box-shadow: 0 0 12px rgba(232, 50, 110, 0.4); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

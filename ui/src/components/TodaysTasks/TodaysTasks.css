@@ -1,0 +1,129 @@
+/* ============================================================
+   TodaysTasks
+   ============================================================ */
+
+.todays-tasks {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.todays-tasks-header {
+  padding: var(--s4) var(--s5);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.todays-tasks-list {
+  padding: 0 var(--s5) var(--s4);
+}
+
+.todays-task-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) 0;
+}
+
+.todays-task-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+}
+
+.todays-task-checkbox:hover {
+  border-color: var(--accent);
+}
+
+.todays-task-checkbox.checked {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.todays-task-checkbox.checked svg {
+  color: #fff;
+}
+
+.todays-task-title {
+  font-size: 13px;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.todays-task-title.completed {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.todays-task-project {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* --- Progress Counter --- */
+.todays-tasks-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--s3) var(--s5);
+  border-top: 1px solid var(--border);
+  gap: var(--s3);
+}
+
+.todays-tasks-counter {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.todays-tasks-count-number {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.todays-tasks-count-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.todays-tasks-ring {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.todays-tasks-ring svg {
+  transform: rotate(-90deg);
+}
+
+.todays-tasks-ring-bg {
+  fill: none;
+  stroke: var(--bg-elevated);
+  stroke-width: 3;
+}
+
+.todays-tasks-ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 400ms ease;
+}

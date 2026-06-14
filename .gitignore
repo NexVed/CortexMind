@@ -1,0 +1,24 @@
+# Binaries
+*.exe
+cortexd
+cortex
+/bin/
+
+# Local PocketBase data (also lives at ~/.cortex/pb_data)
+pb_data/
+.cortex/pb_data/
+
+# Env / secrets
+.env
+*.local
+
+# Node
+ui/node_modules/
+ui/dist/
+
+# Temp / smoke-test scratch files
+_*.json
+
+# OS
+.DS_Store
+Thumbs.db

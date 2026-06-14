@@ -1,0 +1,65 @@
+/* ============================================================
+   QuickActions
+   ============================================================ */
+
+.quick-actions {
+  margin-bottom: var(--s4);
+}
+
+.quick-actions-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--s3);
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--s3);
+}
+
+.quick-action-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s5) var(--s3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  box-shadow: var(--shadow-card);
+}
+
+.quick-action-card:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.quick-action-card:hover .quick-action-icon {
+  color: var(--accent);
+}
+
+.quick-action-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--dur-fast) ease;
+}
+
+.quick-action-icon.purple { color: var(--accent); }
+.quick-action-icon.green  { color: var(--green); }
+.quick-action-icon.orange { color: var(--orange); }
+.quick-action-icon.blue   { color: var(--blue); }
+
+.quick-action-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: center;
+}

@@ -1,0 +1,102 @@
+/* ============================================================
+   StatCard
+   ============================================================ */
+
+.stat-cards-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s4);
+  margin-bottom: var(--s6);
+}
+
+.stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow var(--dur-fast) ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.stat-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stat-card-icon.purple {
+  background: rgba(108, 99, 255, 0.1);
+  color: var(--accent);
+}
+
+.stat-card-icon.blue {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--blue);
+}
+
+.stat-card-icon.violet {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--purple);
+}
+
+.stat-card-icon.orange {
+  background: rgba(249, 115, 22, 0.1);
+  color: var(--orange);
+}
+
+.stat-card-icon.green {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--green);
+}
+
+.stat-card-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stat-card-number {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  animation: countUp 600ms ease-out;
+}
+
+.stat-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.stat-card-sub {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.stat-card-sub.green { color: var(--green); }
+.stat-card-sub.blue { color: var(--blue); }
+.stat-card-sub.purple { color: var(--purple); }
+.stat-card-sub.orange { color: var(--orange); }
+
+@media (max-width: 1279px) {
+  .stat-cards-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

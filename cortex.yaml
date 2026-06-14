@@ -1,0 +1,46 @@
+# CORTEX daemon configuration.
+# Secrets (GitHub OAuth) are loaded from environment variables:
+#   CORTEX_GITHUB_CLIENT_ID, CORTEX_GITHUB_CLIENT_SECRET
+# GitHub OAuth itself is configured in the PocketBase admin UI at /_/.
+
+server:
+  port: 8090
+  mcp_port: 8091
+  data_dir: ~/.cortex/pb_data
+
+github:
+  client_id: ""
+  client_secret: ""
+
+scanner:
+  interval_minutes: 30
+  max_file_size_kb: 500
+  ignored_dirs:
+    - node_modules
+    - .git
+    - dist
+    - build
+    - target
+    - __pycache__
+    - .venv
+    - vendor
+  ignored_extensions:
+    - .lock
+    - .sum
+    - .min.js
+    - .map
+
+search:
+  # Set to true and run Ollama + a LanceDB sidecar to enable semantic search.
+  enable_semantic: false
+  ollama_url: "http://localhost:11434"
+  embedding_model: "bge-m3"
+  # URL of the local LanceDB sidecar (see internal/vector/lancedb.go contract).
+  vector_db_url: "http://localhost:8123"
+
+sync:
+  auto_sync: true
+  sync_on_push: true
+
+env: development
+log_level: info

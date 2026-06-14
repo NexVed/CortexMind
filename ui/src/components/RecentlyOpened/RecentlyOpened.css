@@ -1,0 +1,68 @@
+/* ============================================================
+   RecentlyOpened
+   ============================================================ */
+
+.recently-opened {
+  margin-top: var(--s6);
+}
+
+.recently-opened-header {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--s3);
+}
+
+.recently-opened-strip {
+  display: flex;
+  gap: var(--s3);
+  overflow-x: auto;
+  padding-bottom: var(--s2);
+  scrollbar-width: thin;
+}
+
+.recently-opened-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  flex-shrink: 0;
+}
+
+.recently-opened-chip:hover {
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+}
+
+.recently-opened-chip-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.recently-opened-chip-icon.rust   { background: rgba(196, 88, 10, 0.1); color: #C4580A; }
+.recently-opened-chip-icon.go     { background: rgba(10, 122, 85, 0.1); color: #0A7A55; }
+.recently-opened-chip-icon.cpp    { background: rgba(204, 32, 32, 0.1); color: #CC2020; }
+.recently-opened-chip-icon.python { background: rgba(108, 63, 187, 0.1); color: #6C3FBB; }
+
+.recently-opened-chip-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.recently-opened-chip-project {
+  font-size: 11px;
+  color: var(--text-muted);
+}

@@ -1,0 +1,1168 @@
+/* ============================================================
+   Dashboard — Full Redesign (Design.md compliant)
+   Card-based modular layout · Pink accent · Light/airy
+   ============================================================ */
+
+/* --- Page Container --- */
+.dashboard-v2 {
+  animation: fadeIn var(--dur-enter) ease;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* ============================================================
+   Project Header — Breadcrumbs + Project Info
+   ============================================================ */
+
+.dash-breadcrumbs-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s2);
+  gap: var(--s4);
+}
+
+.dash-breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.dash-breadcrumbs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dash-breadcrumbs::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: var(--r-full);
+}
+
+.dash-breadcrumbs:hover::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+.dash-tab-plus {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+
+.dash-tab-plus:hover {
+  background: var(--bg-elevated);
+}
+
+.dash-tab {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 6px 14px 6px 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+}
+
+@keyframes activeTabPulse {
+  0% {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(0.95);
+  }
+  40% {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    transform: scale(1.03);
+  }
+  100% {
+    background-color: var(--text-primary);
+    border-color: var(--text-primary);
+    transform: scale(1);
+  }
+}
+
+.dash-tab.active {
+  background: var(--text-primary);
+  color: #fff;
+  border-color: var(--text-primary);
+  animation: activeTabPulse 450ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.dash-tab-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dash-tab-icon.dark-bg { background: rgba(255,255,255,0.1); }
+.dash-tab-icon.light-bg { background: var(--bg-elevated); border: 1px solid var(--border); }
+
+.ml-1 { margin-left: 2px; color: var(--text-muted); }
+.dash-tab.active .ml-1 { color: rgba(255,255,255,0.6); }
+
+.dash-timeframe-container {
+  flex-shrink: 0;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+.dash-timeframe {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  margin-right: var(--s4);
+}
+
+.dash-fab {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(232, 50, 110, 0.4);
+  cursor: pointer;
+  transition: transform var(--dur-fast) ease;
+}
+
+.dash-fab:hover {
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   Project Hero — Project details + Brain stats (top row)
+   ============================================================ */
+
+.dash-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s4);
+}
+
+@media (max-width: 1100px) {
+  .dash-top-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Project Info Card --- */
+.dash-project-info {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.dash-project-header {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.dash-project-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.dash-project-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-project-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.dash-project-name svg {
+  color: #F59E0B;
+}
+
+.dash-project-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.dash-project-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--r-full);
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(61, 203, 108, 0.1);
+  color: var(--green);
+  white-space: nowrap;
+}
+
+.dash-project-status svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* --- Project Stats Row (Boxed Layout) --- */
+.dash-project-stats-boxes {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--s3);
+}
+
+.dash-stat-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--s3) var(--s4);
+  background: var(--bg-surface);
+  min-height: 80px;
+}
+
+.dash-stat-box-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-bottom: var(--s1);
+}
+
+.dash-stat-box-label.accent {
+  color: var(--accent);
+}
+
+.dash-stat-box-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.dash-stat-box-bar {
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--bg-elevated);
+  margin-top: auto;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+.dash-stat-box-bar-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  transition: width 800ms ease;
+  animation: progressFill 800ms ease forwards;
+}
+
+.dash-stat-box-bar-fill.accent {
+  background: var(--accent);
+}
+
+/* Agent avatars stack */
+.dash-agent-avatars {
+  display: flex;
+  align-items: center;
+}
+
+.dash-agent-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fff;
+  border: 2px solid var(--bg-surface);
+  margin-left: -6px;
+  flex-shrink: 0;
+}
+
+.dash-agent-avatar:first-child {
+  margin-left: 0;
+}
+
+.dash-agent-avatar-count {
+  font-size: 11px;
+  color: var(--blue);
+  font-weight: 600;
+  margin-left: var(--s2);
+}
+
+/* --- Git Info Box --- */
+.dash-git-info-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  background: var(--bg-elevated);
+  border-radius: var(--r-md);
+  padding: var(--s4) var(--s5);
+  margin-top: 2px;
+}
+
+.dash-git-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+}
+
+
+
+.dash-git-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-git-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dash-git-value {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.dash-git-value.mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.dash-sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--green);
+  animation: pulse 2s ease infinite;
+}
+
+/* ============================================================
+   Project Brain Card
+   ============================================================ */
+
+.dash-brain-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.dash-brain-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dash-brain-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-brain-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-full);
+  background: linear-gradient(135deg, #E0E7FF, #F3E8FF);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: float 3s ease infinite;
+}
+
+.dash-brain-icon svg {
+  color: #7C3AED;
+}
+
+.dash-brain-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.dash-brain-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.dash-brain-row-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+  min-width: 130px;
+}
+
+.dash-brain-bar-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.dash-brain-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+
+.dash-brain-bar-fill {
+  height: 100%;
+  border-radius: var(--r-full);
+  transition: width 1s ease;
+  animation: progressFill 1s ease forwards;
+}
+
+.dash-brain-bar-fill.blue {
+  background: linear-gradient(90deg, #3B82F6, #60A5FA);
+}
+
+.dash-brain-bar-fill.green {
+  background: linear-gradient(90deg, #22C55E, #4ADE80);
+}
+
+.dash-brain-percent {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-brain-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dash-brain-stat-label {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.dash-brain-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-brain-quality {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: var(--r-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dash-brain-quality.high {
+  background: rgba(61, 203, 108, 0.12);
+  color: var(--green);
+}
+
+.dash-brain-quality.medium {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--yellow);
+}
+
+.dash-brain-quality.low {
+  background: rgba(240, 68, 56, 0.12);
+  color: var(--red);
+}
+
+/* ============================================================
+   Middle Row — Activity Feed, Agents, Bubble Graph
+   ============================================================ */
+
+.dash-mid-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: var(--s4);
+}
+
+@media (max-width: 1200px) {
+  .dash-mid-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .dash-mid-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Activity Feed Card
+   ============================================================ */
+
+.dash-activity-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s4);
+}
+
+.dash-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dash-card-link {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) ease;
+}
+
+.dash-card-link:hover {
+  color: var(--accent);
+}
+
+.dash-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-activity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 8px var(--s2);
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast) ease;
+  cursor: pointer;
+}
+
+.dash-activity-item:hover {
+  background: var(--bg-elevated);
+}
+
+.dash-activity-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dash-activity-icon.blue   { background: rgba(59, 130, 246, 0.1); color: var(--blue); }
+.dash-activity-icon.orange { background: rgba(249, 115, 22, 0.1); color: var(--orange); }
+.dash-activity-icon.purple { background: rgba(168, 85, 247, 0.1); color: var(--purple); }
+.dash-activity-icon.green  { background: rgba(61, 203, 108, 0.1); color: var(--green); }
+.dash-activity-icon.red    { background: rgba(240, 68, 56, 0.1); color: var(--red); }
+.dash-activity-icon.accent { background: rgba(232, 50, 110, 0.1); color: var(--accent); }
+
+.dash-activity-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-activity-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   AI Agents Card
+   ============================================================ */
+
+.dash-agents-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-agents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-agent-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 8px var(--s2);
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast) ease;
+}
+
+.dash-agent-row:hover {
+  background: var(--bg-elevated);
+}
+
+.dash-agent-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.dash-agent-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.dash-agent-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.dash-agent-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+}
+
+.dash-agent-status.active .dash-agent-status-dot {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(61, 203, 108, 0.5);
+}
+
+.dash-agent-status.active {
+  color: var(--green);
+}
+
+.dash-agent-status.idle .dash-agent-status-dot {
+  background: var(--yellow);
+}
+
+.dash-agent-status.idle {
+  color: var(--yellow);
+}
+
+.dash-agent-status.connected .dash-agent-status-dot {
+  background: var(--blue);
+  animation: pulse 2s ease infinite;
+}
+
+.dash-agent-status.connected {
+  color: var(--blue);
+}
+
+.dash-agent-status.offline .dash-agent-status-dot {
+  background: var(--text-muted);
+}
+
+.dash-agent-status.offline {
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   Bubble Knowledge Card
+   ============================================================ */
+
+.dash-bubble-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-bubble-container {
+  flex: 1;
+  min-height: 200px;
+  position: relative;
+}
+
+.dash-bubble-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ============================================================
+   Bottom Row — Context Generator, Timeline, Quick Actions
+   ============================================================ */
+
+.dash-bottom-row {
+  display: grid;
+  grid-template-columns: 1.1fr 1.1fr 0.8fr;
+  gap: var(--s4);
+}
+
+@media (max-width: 1200px) {
+  .dash-bottom-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .dash-bottom-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Context Generator Card
+   ============================================================ */
+
+.dash-context-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.dash-context-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: -4px;
+}
+
+.dash-context-goal {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--accent-soft);
+  border-radius: var(--r-md);
+}
+
+.dash-context-goal-badge {
+  padding: 3px 10px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--r-full);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dash-context-goal-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.dash-context-stats {
+  display: flex;
+  gap: var(--s5);
+}
+
+.dash-context-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-context-stat-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dash-context-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-generate-btn {
+  width: 100%;
+  height: 40px;
+  background: var(--primary-dark);
+  color: #fff;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease, transform var(--dur-fast) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+}
+
+.dash-generate-btn:hover {
+  background: #2D2D36;
+  transform: translateY(-1px);
+}
+
+.dash-generate-btn:active {
+  transform: translateY(0);
+}
+
+/* ============================================================
+   Project Timeline Card
+   ============================================================ */
+
+.dash-timeline-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dash-timeline-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 8px var(--s2);
+  border-radius: var(--r-sm);
+  transition: background var(--dur-fast) ease;
+}
+
+.dash-timeline-item:hover {
+  background: var(--bg-elevated);
+}
+
+.dash-timeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  flex-shrink: 0;
+}
+
+.dash-timeline-dot.green  { background: var(--green); }
+.dash-timeline-dot.blue   { background: var(--blue); }
+.dash-timeline-dot.purple { background: var(--purple); }
+.dash-timeline-dot.orange { background: var(--orange); }
+.dash-timeline-dot.accent { background: var(--accent); }
+
+.dash-timeline-date {
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 50px;
+  font-weight: 500;
+}
+
+.dash-timeline-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-timeline-badge {
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.dash-timeline-badge.decision { background: rgba(232, 50, 110, 0.1); color: var(--accent); }
+.dash-timeline-badge.task     { background: rgba(59, 130, 246, 0.1); color: var(--blue); }
+.dash-timeline-badge.handoff  { background: rgba(168, 85, 247, 0.1); color: var(--purple); }
+.dash-timeline-badge.memory   { background: rgba(61, 203, 108, 0.1); color: var(--green); }
+
+/* ============================================================
+   Quick Actions Card
+   ============================================================ */
+
+.dash-quick-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+}
+
+.dash-quick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--s4);
+}
+
+.dash-quick-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 8px var(--s2);
+  border-radius: var(--r-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+
+.dash-quick-item:hover {
+  background: var(--bg-elevated);
+}
+
+.dash-quick-item svg {
+  color: var(--text-secondary);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Status Bar (bottom)
+   ============================================================ */
+
+.dash-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--s3) var(--s5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dash-status-left {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.dash-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--green);
+  animation: pulse 2.5s ease infinite;
+}
+
+.dash-status-dot.offline {
+  background: var(--red);
+  animation: none;
+}
+
+.dash-status-stats {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+}
+
+.dash-status-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dash-status-stat strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.dash-status-right {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.dash-status-server {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.dash-status-server-label {
+  color: var(--text-muted);
+}
+
+.dash-status-server-value {
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dash-status-server-value.running {
+  background: rgba(61, 203, 108, 0.12);
+  color: var(--green);
+}
+
+.dash-status-server-value.stopped {
+  background: rgba(240, 68, 56, 0.12);
+  color: var(--red);
+}
+
+/* ============================================================
+   Loading Shimmer for cards
+   ============================================================ */
+
+.dash-shimmer {
+  background: linear-gradient(90deg,
+    var(--bg-elevated) 0%,
+    var(--bg-surface) 40%,
+    var(--bg-elevated) 100%
+  );
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--r-sm);
+}
+
+.dash-shimmer-line {
+  height: 12px;
+  margin-bottom: var(--s2);
+}
+
+.dash-shimmer-line:last-child {
+  margin-bottom: 0;
+  width: 60%;
+}
+
+/* ============================================================
+   Responsive: Right panel no longer needed
+   ============================================================ */
+
+.dashboard-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ============================================================
+   FAB button (+)
+   ============================================================ */
+
+.dash-fab {
+  position: fixed;
+  bottom: 76px;
+  right: var(--s6);
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(232, 50, 110, 0.3);
+  transition: transform var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
+  z-index: 50;
+}
+
+.dash-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(232, 50, 110, 0.4);
+}
+
+.dash-fab:active {
+  transform: translateY(0);
+}
