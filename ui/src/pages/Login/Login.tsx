@@ -30,7 +30,7 @@ export const LoginPage: Component = () => {
       <main class="login-card">
         <div class="login-mark" aria-hidden="true">C</div>
 
-        <h1 class="login-heading">Sign in to CORTEX</h1>
+        <h1 class="login-heading">Sign in to CortexMind</h1>
         <p class="login-sub">The shared brain for AI development.</p>
 
         <button
@@ -59,7 +59,7 @@ export const LoginPage: Component = () => {
         </ul>
 
         <p class="login-fineprint">
-          By continuing, you connect your GitHub account to CORTEX for repository
+          By continuing, you connect your GitHub account to CortexMind for repository
           access and project intelligence.
         </p>
       </main>

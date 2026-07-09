@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="ui/public/logowithname.png" alt="CORTEX" width="360" />
+  <img src="ui/public/logowithname-readme.png" alt="CortexMind" width="380" />
 </p>
 
-<h1 align="center">CORTEX — The Shared Brain For AI Development</h1>
+<h1 align="center">CortexMind — The Shared Brain For AI Development</h1>
 
-<p align="center"><strong>Git syncs code. CORTEX syncs understanding.</strong></p>
+<p align="center"><strong>Git syncs code. CortexMind syncs understanding.</strong></p>
 
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
@@ -16,7 +16,7 @@
 
 ---
 
-CORTEX (a.k.a. **cortexMind**) is a **local-first AI development companion**. It scans your GitHub
+**CortexMind** is a **local-first AI development companion**. It scans your GitHub
 repositories, builds a knowledge graph of each project (tech stack, authentication, features,
 structure), generates a tailored **system prompt** per project, and exposes everything to your AI
 coding tools over the **Model Context Protocol (MCP)** — so every agent, in every IDE, starts with
@@ -48,7 +48,7 @@ memory, and tokens never leave your machine.
 
 ## What It Does
 
-1. **Scan GitHub repos** — Sign in with GitHub, then scan any repo. CORTEX clones it, indexes
+1. **Scan GitHub repos** — Sign in with GitHub, then scan any repo. CortexMind clones it, indexes
    files/symbols, and analyzes the **tech stack, authentication approach, features, project
    structure, and API endpoints**, persisting a **knowledge graph** into local storage.
 2. **Build a code graph** — Compile the indexed files into a persistent codebase-memory graph
@@ -102,7 +102,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 | Language           | Go 1.25+ |
 | App framework / DB | PocketBase (embedded SQLite, auth, REST, router) |
 | RPC                | ConnectRPC (`connectrpc.com/connect`) |
-| Config             | Viper (`cortex.yaml` + `CORTEX_*` env vars) |
+| Config             | Viper (`cortex.yaml` + `CortexMind_*` env vars) |
 | Logging            | Zerolog |
 | Git                | go-git (clone, commit, pull) |
 | File watching      | fsnotify |
@@ -130,7 +130,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 ## Project Structure
 
 ```
-Cortex/
+CortexMind/
 ├── cmd/
 │   └── cortexd/
 │       └── main.go                 # Daemon entrypoint (loads config, starts PocketBase)
@@ -334,7 +334,7 @@ npm run build        # tsc --noEmit + vite build → outputs static assets to ui
 ## Configuration
 
 Configuration is read from `cortex.yaml` (searched in `.`, `.cortex/`, and `~/.cortex/`) and
-overridden by `CORTEX_*` environment variables. Missing config falls back to sensible defaults.
+overridden by `CortexMind_*` environment variables. Missing config falls back to sensible defaults.
 
 ```yaml
 server:
@@ -365,10 +365,10 @@ log_level: info
 ### Secrets / environment variables
 | Variable | Purpose |
 |----------|---------|
-| `CORTEX_GITHUB_CLIENT_ID`     | GitHub OAuth client id |
-| `CORTEX_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
-| `CORTEX_OLLAMA_URL`           | Override Ollama URL |
-| `CORTEX_DATA_DIR`             | Override data directory |
+| `CortexMind_GITHUB_CLIENT_ID`     | GitHub OAuth client id |
+| `CortexMind_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
+| `CortexMind_OLLAMA_URL`           | Override Ollama URL |
+| `CortexMind_DATA_DIR`             | Override data directory |
 
 > GitHub OAuth is enabled/configured in the PocketBase admin UI (`/_/` → Settings → Auth providers).
 > **LLM provider keys (Mistral) and embedding settings are configured per-user in the UI** under
@@ -379,7 +379,7 @@ log_level: info
 ## The Workflow
 
 1. **Start** the daemon and UI, open the UI, and **sign in with GitHub**.
-2. **Projects** page → your repos appear. Click **Scan** on a repo. CORTEX clones it, indexes it,
+2. **Projects** page → your repos appear. Click **Scan** on a repo. CortexMind clones it, indexes it,
    and builds its knowledge graph.
 3. **Code Graph** page → **Build graph** to compile the indexed files into a queryable
    codebase-memory graph.
@@ -446,6 +446,6 @@ Each connection is authorized by a unique Bearer token bound to a user + project
 ---
 
 <p align="center">
-  <sub>CORTEX is local-first: your code, memory, and tokens stay on your machine in <code>~/.cortex/</code>.</sub>
+  <sub>CortexMind is local-first: your code, memory, and tokens stay on your machine in <code>~/.cortex/</code>.</sub>
 </p>
 <p align="center"><sub>Built with ❤️ by NexVed</sub></p>

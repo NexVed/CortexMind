@@ -60,7 +60,7 @@ const ProtectedRoute: Component<{ children: any }> = (props) => {
               'font-weight': '700',
               'font-size': '20px',
             }}>C</div>
-            <span style={{ 'font-size': '13px' }}>Loading CORTEX...</span>
+            <span style={{ 'font-size': '13px' }}>Loading CortexMind...</span>
           </div>
         </div>
       }

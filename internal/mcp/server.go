@@ -233,7 +233,7 @@ func (s *Server) handleInitialize(auth *authContext, req *rpcRequest) (any, *rpc
 			"name":    serverName,
 			"version": serverVersion,
 		},
-		"instructions": "CORTEX shared brain. Call the cortex_get_context tool first to load this project's characterization and the memory of previous AI sessions. Use cortex_save_memory to record progress, decisions and context as you work.",
+		"instructions": "CortexMind shared brain. Call the cortex_get_context tool first to load this project's characterization and the memory of previous AI sessions. Use cortex_save_memory to record progress, decisions and context as you work.",
 	}, nil
 }
 

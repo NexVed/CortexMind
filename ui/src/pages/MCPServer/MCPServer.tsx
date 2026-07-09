@@ -225,7 +225,7 @@ export const MCPServerPage: Component = () => {
           </div>
           <div>
             <h1 class="page-title">MCP Server</h1>
-            <p class="page-subtitle">Connect any AI client to CORTEX's shared project brain.</p>
+            <p class="page-subtitle">Connect any AI client to CortexMind's shared project brain.</p>
           </div>
         </div>
         <div class="page-header-actions">

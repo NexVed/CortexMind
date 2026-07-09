@@ -25,9 +25,9 @@ const settingsCategories = [
 ];
 
 const generalSettings = [
-  { label: 'Auto-scan repositories', description: 'Automatically scan repositories when added to CORTEX', enabled: true },
+  { label: 'Auto-scan repositories', description: 'Automatically scan repositories when added to CortexMind', enabled: true },
   { label: 'Live file watching', description: 'Watch for file changes and update indexes in real-time', enabled: true },
-  { label: 'Send anonymous usage data', description: 'Help improve CORTEX by sharing anonymous usage statistics', enabled: false },
+  { label: 'Send anonymous usage data', description: 'Help improve CortexMind by sharing anonymous usage statistics', enabled: false },
   { label: 'Auto-update', description: 'Automatically download and install updates', enabled: true },
 ];
 
@@ -76,7 +76,7 @@ export const SettingsPage: Component = () => {
   const [resetting, setResetting] = createSignal(false);
   const handleReset = async () => {
     const confirmed = window.confirm(
-      'This permanently deletes ALL CORTEX data — projects, memories, handoffs, ' +
+      'This permanently deletes ALL CortexMind data — projects, memories, handoffs, ' +
       'tasks, digests, and settings. This cannot be undone.\n\nContinue?'
     );
     if (!confirmed) return;
@@ -277,7 +277,7 @@ export const SettingsPage: Component = () => {
             <div class="card">
               <div class="card-title" style={{ 'margin-bottom': '4px' }}>Sync & Git</div>
               <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
-                Control how CORTEX memory bundles are committed and pushed to your repositories.
+                Control how CortexMind memory bundles are committed and pushed to your repositories.
               </div>
               <For each={syncGitSettings}>
                 {(setting) => (
@@ -394,7 +394,7 @@ export const SettingsPage: Component = () => {
                   color: '#fff', 'font-weight': '700', 'font-size': '24px',
                   margin: '0 auto 16px',
                 }}>C</div>
-                <div style={{ 'font-size': '18px', 'font-weight': '700', color: 'var(--text-primary)', 'margin-bottom': '4px' }}>CORTEX</div>
+                <div style={{ 'font-size': '18px', 'font-weight': '700', color: 'var(--text-primary)', 'margin-bottom': '4px' }}>CortexMind</div>
                 <div style={{ 'font-size': '13px', color: 'var(--text-secondary)', 'margin-bottom': '4px' }}>The Shared Brain For AI Development</div>
                 <div class="small">Version 0.1.0-alpha</div>
                 <div class="small" style={{ 'margin-top': '16px' }}>Built with ❤️ by NexVed</div>
