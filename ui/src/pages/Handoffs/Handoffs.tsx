@@ -1,4 +1,4 @@
-import { Component, For, createSignal, createResource, Show } from 'solid-js';
+import { Component, For, createSignal, Show } from 'solid-js';
 import {
   ArrowRightLeft,
   Plus,
@@ -10,12 +10,55 @@ import {
   MoreVertical,
   ChevronRight,
 } from 'lucide-solid';
-import { listHandoffs } from '../../api/client';
+import { useHandoffs, useCreateHandoff } from '../../api/queries';
+import { Modal } from '../../components/Modal/Modal';
 import './Handoffs.css';
 
 export const HandoffsPage: Component = () => {
   const [searchQuery, setSearchQuery] = createSignal('');
-  const [handoffs] = createResource(() => listHandoffs());
+  const handoffsQuery = useHandoffs();
+  const handoffs = () => handoffsQuery.data;
+  const createHandoffM = useCreateHandoff();
+
+  // ── Create handoff modal ──
+  const [showCreate, setShowCreate] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [formErr, setFormErr] = createSignal('');
+  const [fTitle, setFTitle] = createSignal('');
+  const [fFrom, setFFrom] = createSignal('');
+  const [fTo, setFTo] = createSignal('');
+  const [fContext, setFContext] = createSignal('');
+
+  const openCreate = () => {
+    setFTitle('');
+    setFFrom('');
+    setFTo('');
+    setFContext('');
+    setFormErr('');
+    setShowCreate(true);
+  };
+
+  const submitCreate = async () => {
+    if (!fTitle().trim() || !fFrom().trim() || !fTo().trim()) {
+      setFormErr('Title, from-agent and to-agent are required.');
+      return;
+    }
+    setSaving(true);
+    setFormErr('');
+    try {
+      await createHandoffM.mutateAsync({
+        title: fTitle().trim(),
+        from_agent: fFrom().trim(),
+        to_agent: fTo().trim(),
+        context: fContext().trim(),
+      });
+      setShowCreate(false);
+    } catch (err: any) {
+      setFormErr(err?.message || 'Failed to create handoff');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const filteredHandoffs = () => {
     const h = handoffs();
@@ -43,7 +86,7 @@ export const HandoffsPage: Component = () => {
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn primary">
+          <button class="btn primary" onClick={openCreate}>
             <Plus size={16} />
             New Handoff
           </button>
@@ -70,11 +113,11 @@ export const HandoffsPage: Component = () => {
         </div>
       </div>
 
-      <Show when={handoffs.loading}>
+      <Show when={handoffsQuery.isLoading}>
         <div class="loading-state">Loading handoffs...</div>
       </Show>
 
-      <Show when={!handoffs.loading && filteredHandoffs().length === 0}>
+      <Show when={!handoffsQuery.isLoading && filteredHandoffs().length === 0}>
         <div class="empty-state">
           <div class="empty-icon"><ArrowRightLeft size={32} /></div>
           <h3>No handoffs found</h3>
@@ -132,6 +175,43 @@ export const HandoffsPage: Component = () => {
           )}
         </For>
       </div>
+
+      <Modal open={showCreate()} title="New Handoff" onClose={() => setShowCreate(false)}>
+        <div class="cx-field">
+          <label>Title *</label>
+          <input
+            value={fTitle()}
+            onInput={(e) => setFTitle(e.currentTarget.value)}
+            placeholder="Context handoff summary"
+            autofocus
+          />
+        </div>
+        <div class="cx-field">
+          <label>From agent *</label>
+          <input value={fFrom()} onInput={(e) => setFFrom(e.currentTarget.value)} placeholder="claude" />
+        </div>
+        <div class="cx-field">
+          <label>To agent *</label>
+          <input value={fTo()} onInput={(e) => setFTo(e.currentTarget.value)} placeholder="cursor" />
+        </div>
+        <div class="cx-field">
+          <label>Context</label>
+          <textarea
+            value={fContext()}
+            onInput={(e) => setFContext(e.currentTarget.value)}
+            placeholder="What the next agent needs to know…"
+          />
+        </div>
+        <Show when={formErr()}>
+          <div class="cx-modal-error">{formErr()}</div>
+        </Show>
+        <div class="cx-modal-actions">
+          <button class="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+          <button class="btn primary" onClick={submitCreate} disabled={saving()}>
+            {saving() ? 'Creating…' : 'Create Handoff'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

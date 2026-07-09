@@ -1,16 +1,19 @@
-import { Component, For, createResource, Show, createEffect, createSignal } from 'solid-js';
+import { Component, For, Show, createEffect, createSignal } from 'solid-js';
 import { Check } from 'lucide-solid';
-import { listTasks, updateTask, Task } from '../../api/client';
+import { type Task } from '../../api/client';
+import { useTasks, useUpdateTask } from '../../api/queries';
 import './TodaysTasks.css';
 
 export const TodaysTasks: Component = () => {
-  const [serverTasks, { mutate }] = createResource(() => listTasks());
+  const tasksQuery = useTasks();
+  const updateTaskM = useUpdateTask();
   const [tasks, setTasks] = createSignal<Task[]>([]);
 
   createEffect(() => {
-    if (serverTasks()) {
-      // Filter for "today's" tasks (in a real app, this would check due_date, but for now just show top active/recent tasks)
-      setTasks(serverTasks()!.slice(0, 5));
+    const data = tasksQuery.data;
+    if (data) {
+      // Show the top few active/recent tasks as "today's" list.
+      setTasks(data.slice(0, 5));
     }
   });
 
@@ -19,12 +22,12 @@ export const TodaysTasks: Component = () => {
 
   const toggleTask = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-    
+
     // Optimistic UI update
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
-    
+
     try {
-      await updateTask(id, { status: newStatus });
+      await updateTaskM.mutateAsync({ id, data: { status: newStatus } });
     } catch (err) {
       console.error("Failed to update task", err);
       // Revert on failure
@@ -42,7 +45,7 @@ export const TodaysTasks: Component = () => {
     <div class="todays-tasks">
       <div class="todays-tasks-header">Today's Tasks</div>
       
-      <Show when={!serverTasks.loading && tasks().length === 0}>
+      <Show when={!tasksQuery.isLoading && tasks().length === 0}>
         <div style={{ padding: '16px', "text-align": 'center', color: 'var(--text-muted)' }}>
           No tasks for today. You're all caught up!
         </div>
@@ -79,7 +82,7 @@ export const TodaysTasks: Component = () => {
             <circle
               class="todays-tasks-ring-fill"
               cx="20" cy="20" r={radius}
-              stroke-dasharray={circumference}
+              stroke-dasharray={String(circumference)}
               stroke-dashoffset={dashOffset()}
             />
           </svg>

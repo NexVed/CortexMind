@@ -1,4 +1,5 @@
-import { Component, For, onMount, createSignal } from 'solid-js';
+import { Component, For, createMemo, createSignal } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import type { KnowledgeGraphNode } from '../../api/client';
 
 interface Props {
@@ -16,62 +17,53 @@ interface BubbleData {
 }
 
 export const BubbleKnowledgeCard: Component<Props> = (props) => {
-  const [bubbles, setBubbles] = createSignal<BubbleData[]>([]);
+  const navigate = useNavigate();
   const [hoveredId, setHoveredId] = createSignal<string | null>(null);
 
-  // Layout the bubbles in a force-directed-like arrangement
-  onMount(() => {
-    updateLayout();
-  });
-
-  // Recalculate when nodes change
-  const updateLayout = () => {
+  // Derive the bubble layout reactively so it updates whenever the dashboard's
+  // knowledge-graph data finishes loading (the previous onMount-only layout
+  // captured the initial empty state and never refreshed, so counts stuck at 0).
+  const bubbles = createMemo<BubbleData[]>(() => {
     const nodes = props.nodes;
-    if (!nodes.length) return;
+    if (!nodes.length) return [];
 
     const cx = 200;
     const cy = 120;
     const maxCount = Math.max(...nodes.map((n) => n.count), 1);
 
-    // Find center node (largest)
+    // Largest node sits at the center; the rest orbit around it.
     const sorted = [...nodes].sort((a, b) => b.count - a.count);
-
-    const result: BubbleData[] = [];
     const angleStep = (2 * Math.PI) / Math.max(sorted.length - 1, 1);
 
-    sorted.forEach((node, i) => {
-      const r = 24 + (node.count / maxCount) * 32;
-
+    return sorted.map((node, i) => {
+      // Square-root scale keeps a dominant count (e.g. Files: 116) from
+      // ballooning past the card while still showing relative size.
+      const r = 22 + Math.sqrt(node.count / maxCount) * 16;
       let x: number, y: number;
       if (i === 0) {
-        // Center bubble (largest)
         x = cx;
         y = cy;
       } else {
-        // Orbit around center
         const angle = angleStep * (i - 1) - Math.PI / 2;
         const orbitR = 80 + (i % 2 === 0 ? 15 : 0);
         x = cx + Math.cos(angle) * orbitR;
         y = cy + Math.sin(angle) * orbitR;
       }
-
-      result.push({ ...node, x, y, r });
+      return { ...node, x, y, r };
     });
-
-    setBubbles(result);
-  };
-
-  // React to node changes
-  createSignal; // used above
-  (() => {
-    if (props.nodes.length > 0) updateLayout();
-  })();
+  });
 
   return (
     <div class="dash-bubble-card">
       <div class="dash-card-header">
         <span class="dash-card-title">Bubble Knowledge</span>
-        <span class="dash-card-link">View full graph</span>
+        <span
+          class="dash-card-link"
+          style={{ cursor: 'pointer' }}
+          onClick={() => navigate('/code-graph')}
+        >
+          View full graph
+        </span>
       </div>
 
       <div class="dash-bubble-container">

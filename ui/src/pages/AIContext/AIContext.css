@@ -17,7 +17,8 @@
 
 /* Config Left Column */
 .context-config {
-  width: 400px;
+  width: 320px;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   gap: var(--s4);

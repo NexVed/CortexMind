@@ -1,5 +1,5 @@
-import { Component, createResource, createMemo, Show, For, createEffect } from 'solid-js';
-import { useSearchParams } from '@solidjs/router';
+import { Component, createMemo, Show, For, createEffect } from 'solid-js';
+import { useSearchParams, useNavigate } from '@solidjs/router';
 import {
   Star,
   CheckCircle2,
@@ -13,25 +13,21 @@ import {
 } from 'lucide-solid';
 import { useAuth } from '../../api/auth';
 import {
-  listProjects,
-  listTasks,
-  listHandoffs,
-  listVaultEntries,
-  listRecentFiles,
-  getActiveAgents,
-  getProjectBrainStats,
-  listProjectActivity,
   buildKnowledgeGraph,
-  getDaemonStatus,
   type Project,
-  type AgentInfo,
-  type ProjectBrainStats,
-  type ActivityLogEntry,
   type KnowledgeGraphNode,
-  type Task,
-  type Handoff,
-  type VaultEntry,
 } from '../../api/client';
+import {
+  useProjects,
+  useTasks,
+  useHandoffs,
+  useVaultEntries,
+  useRecentFiles,
+  useDaemonStatus,
+  useProjectBrainStats,
+  useActiveAgents,
+  useProjectActivity,
+} from '../../api/queries';
 import { ProjectBrainCard } from './ProjectBrainCard';
 import { ActivityFeedCard } from './ActivityFeedCard';
 import { AgentsCard } from './AgentsCard';
@@ -46,18 +42,25 @@ import './Dashboard.css';
 
 export const DashboardMain: Component = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedProjectId = () => searchParams.project || null;
   const setSelectedProjectId = (id: string) => setSearchParams({ project: id }, { replace: true });
 
-  // ── Fetch all data from PocketBase ─────────────────
-  const [projects] = createResource(() => listProjects());
-  const [tasks] = createResource(() => listTasks());
-  const [handoffs] = createResource(() => listHandoffs());
-  const [vaultEntries] = createResource(() => listVaultEntries());
-  const [allFiles] = createResource(() => listRecentFiles(500));
-  const [daemonStatus] = createResource(() => getDaemonStatus());
+  // ── Fetch all data (server state via solid-query) ──
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
+  const tasksQuery = useTasks();
+  const tasks = () => tasksQuery.data;
+  const handoffsQuery = useHandoffs();
+  const handoffs = () => handoffsQuery.data;
+  const vaultQuery = useVaultEntries();
+  const vaultEntries = () => vaultQuery.data;
+  const filesQuery = useRecentFiles(500);
+  const allFiles = () => filesQuery.data;
+  const daemonQuery = useDaemonStatus();
+  const daemonStatus = () => daemonQuery.data;
 
   // Pin the initial project so it doesn't jump around when backend ordering changes
   createEffect(() => {
@@ -82,17 +85,12 @@ export const DashboardMain: Component = () => {
   const projectId = createMemo(() => activeProject()?.id ?? '');
 
   // ── Scoped data (per-project) ──────────────────────
-  const [brainStats] = createResource(projectId, (id) =>
-    id ? getProjectBrainStats(id) : Promise.resolve(null)
-  );
-
-  const [agents] = createResource(projectId, (id) =>
-    getActiveAgents(id || undefined)
-  );
-
-  const [projectActivity] = createResource(projectId, (id) =>
-    id ? listProjectActivity(id, 5) : Promise.resolve([])
-  );
+  const brainStatsQuery = useProjectBrainStats(projectId);
+  const brainStats = () => brainStatsQuery.data;
+  const agentsQuery = useActiveAgents(projectId);
+  const agents = () => agentsQuery.data;
+  const projectActivityQuery = useProjectActivity(projectId, 5);
+  const projectActivity = () => projectActivityQuery.data;
 
   // ── Knowledge graph nodes ─────────────────────────
   const graphNodes = createMemo<KnowledgeGraphNode[]>(() => {
@@ -147,6 +145,24 @@ export const DashboardMain: Component = () => {
     return `${Math.floor(diffH / 24)}d ago`;
   });
 
+  // ── Scan state (real data, no fabricated commit/branch) ──
+  const isScanned = createMemo(() => !!activeProject()?.last_scanned);
+  const lastScanned = createMemo(() => {
+    const p = activeProject();
+    if (!p?.last_scanned) return 'Never scanned';
+    return new Date(p.last_scanned).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  });
+  const githubSlug = createMemo(() => {
+    const url = activeProject()?.github_url;
+    if (!url) return 'Not linked';
+    return url.replace('https://github.com/', '').replace(/\.git$/, '');
+  });
+
   // ── Related projects as breadcrumbs ───────────────
   const breadcrumbProjects = createMemo(() => {
     const p = projects();
@@ -172,23 +188,23 @@ export const DashboardMain: Component = () => {
       {/* ── Breadcrumbs Row ──────────────────────────── */}
       <div class="dash-breadcrumbs-container">
         <div class="dash-breadcrumbs">
-          <button class="dash-tab-plus"><Plus size={16} /></button>
+          <button class="dash-tab-plus" title="Add project" onClick={() => navigate('/projects')}><Plus size={16} /></button>
           
           <For each={orderedProjects()}>
             {(proj) => {
-              const isActive = proj.id === projectId();
+              const isActive = () => proj.id === projectId();
               return (
                 <button 
-                  class={`dash-tab ${isActive ? 'active' : 'inactive'}`}
+                  class={`dash-tab ${isActive() ? 'active' : 'inactive'}`}
                   onClick={() => setSelectedProjectId(proj.id)}
                 >
-                  <div class={`dash-tab-icon ${isActive ? 'dark-bg' : 'light-bg'}`}>
-                    <span style={{ color: isActive ? 'white' : 'var(--text-primary)', 'font-size': '10px' }}>
+                  <div class={`dash-tab-icon ${isActive() ? 'dark-bg' : 'light-bg'}`}>
+                    <span style={{ color: isActive() ? 'var(--bg-surface)' : 'var(--text-primary)', 'font-size': '10px' }}>
                       {proj.name?.charAt(0)?.toUpperCase() || 'P'}
                     </span>
                   </div>
                   {proj.name}
-                  <Show when={isActive} fallback={<ChevronRight size={14} class="ml-1" />}>
+                  <Show when={isActive()} fallback={<ChevronRight size={14} class="ml-1" />}>
                     <ChevronDown size={14} class="ml-1" />
                   </Show>
                 </button>
@@ -200,11 +216,10 @@ export const DashboardMain: Component = () => {
         <div class="dash-timeframe-container">
           <div class="dash-timeframe">
             <Calendar size={14} />
-            <span>Timeframe</span>
+            <span>Last updated</span>
             <span style={{ color: 'var(--text-primary)', 'font-weight': '500' }}>
-              Sep 1 - Nov 30, 2023
+              {lastUpdated()}
             </span>
-            <ChevronDown size={12} />
           </div>
         </div>
       </div>
@@ -226,11 +241,11 @@ export const DashboardMain: Component = () => {
             </div>
             <div class="dash-project-title-block">
               <div class="dash-project-name">
-                {activeProject()?.name || 'Alloy Browser'}
+                {activeProject()?.name || 'No project selected'}
                 <Star size={18} color="#F59E0B" fill="#F59E0B" />
               </div>
               <div class="dash-project-desc">
-                {activeProject()?.description || 'Smart, private, and AI-native browser.'}
+                {activeProject()?.description || 'No description yet.'}
               </div>
             </div>
             <div class="dash-project-status">
@@ -256,7 +271,7 @@ export const DashboardMain: Component = () => {
             
             <div class="dash-stat-box">
               <div class="dash-stat-box-label accent">Open Tasks</div>
-              <div class="dash-stat-box-value">{openTasks() || 12}</div>
+              <div class="dash-stat-box-value">{openTasks()}</div>
             </div>
 
             <div class="dash-stat-box">
@@ -285,7 +300,7 @@ export const DashboardMain: Component = () => {
             <div class="dash-stat-box">
               <div class="dash-stat-box-label accent">Last Updated</div>
               <div class="dash-stat-box-value" style={{ "font-size": "16px" }}>
-                {activeProject() ? lastUpdated() : '2h ago'}
+                {lastUpdated()}
               </div>
             </div>
           </div>
@@ -295,47 +310,52 @@ export const DashboardMain: Component = () => {
             <div class="dash-git-icon">
               <Github size={24} />
             </div>
-            <div class="dash-git-item" style={{ flex: 1.5 }}>
+            <div class="dash-git-item" style={{ flex: 2 }}>
               <span class="dash-git-label">GitHub</span>
-              <span class="dash-git-value" style={{ 'font-size': '13px' }}>
-                {activeProject()?.github_url
-                  ? activeProject()!.github_url.replace('https://github.com/', '')
-                  : 'alloy-team/alloy-browser'}
-              </span>
+              <Show
+                when={activeProject()?.github_url}
+                fallback={<span class="dash-git-value" style={{ 'font-size': '13px' }}>Not linked</span>}
+              >
+                <a
+                  class="dash-git-value"
+                  href={activeProject()!.github_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ 'font-size': '13px', color: 'inherit', 'text-decoration': 'none' }}
+                >
+                  {githubSlug()}
+                </a>
+              </Show>
+            </div>
+            <div class="dash-git-item" style={{ flex: 1.5 }}>
+              <span class="dash-git-label">Last Scanned</span>
+              <span class="dash-git-value" style={{ 'font-size': '13px' }}>{lastScanned()}</span>
             </div>
             <div class="dash-git-item" style={{ flex: 1 }}>
-              <span class="dash-git-label">Branch</span>
-              <span class="dash-git-value">main</span>
+              <span class="dash-git-label">Indexed</span>
+              <span class="dash-git-value">{projectProgress()}%</span>
             </div>
             <div class="dash-git-item" style={{ flex: 1 }}>
-              <span class="dash-git-label">Last Commit</span>
-              <span class="dash-git-value mono">
-                {activeProject()?.last_scanned
-                  ? activeProject()!.last_scanned.slice(0, 7)
-                  : 'a1b2c3d'}
-              </span>
-            </div>
-            <div class="dash-git-item" style={{ flex: 1 }}>
-              <span class="dash-git-label">Sync Status</span>
+              <span class="dash-git-label">Status</span>
               <div class="dash-sync-status">
-                <span class="dash-sync-dot" />
-                <span class="dash-git-value">Up to date</span>
+                <span class="dash-sync-dot" style={{ background: isScanned() ? undefined : 'var(--text-muted)' }} />
+                <span class="dash-git-value">{isScanned() ? 'Scanned' : 'Not scanned'}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Project Brain Card */}
-        <ProjectBrainCard stats={brainStats() ?? null} loading={brainStats.loading} />
+        <ProjectBrainCard stats={brainStats() ?? null} loading={brainStatsQuery.isLoading} />
       </div>
 
       {/* ── Middle Row: Activity · Agents · Bubble Graph ─ */}
       <div class="dash-mid-row">
         <ActivityFeedCard
           activities={projectActivity() ?? []}
-          loading={projectActivity.loading}
+          loading={projectActivityQuery.isLoading}
         />
-        <AgentsCard agents={agents() ?? []} loading={agents.loading} />
+        <AgentsCard agents={agents() ?? []} loading={agentsQuery.isLoading} />
         <BubbleKnowledgeCard nodes={graphNodes()} />
       </div>
 
@@ -347,13 +367,16 @@ export const DashboardMain: Component = () => {
           tasks={(tasks() ?? []).filter(
             (t) => t.project === projectId() && t.status !== 'done'
           ).length}
+          onGenerate={() =>
+            navigate(projectId() ? `/ai-context?project=${projectId()}` : '/ai-context')
+          }
         />
         <ProjectTimelineCard
           vaultEntries={vaultEntries() ?? []}
           handoffs={handoffs() ?? []}
           projectId={projectId()}
         />
-        <QuickActionsCard />
+        <QuickActionsCard onNavigate={(path) => navigate(path)} />
       </div>
 
       {/* ── Status Bar ──────────────────────────────── */}

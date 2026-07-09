@@ -1,16 +1,17 @@
-import { Component, For, createResource, Show } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import { FileCode2 } from 'lucide-solid';
-import { listRecentFiles } from '../../api/client';
+import { useRecentFiles } from '../../api/queries';
 import './RecentlyOpened.css';
 
 export const RecentlyOpened: Component = () => {
-  const [recentFiles] = createResource(() => listRecentFiles(4));
+  const recentFilesQuery = useRecentFiles(4);
+  const recentFiles = () => recentFilesQuery.data;
 
   return (
     <div class="recently-opened">
       <div class="recently-opened-header">Recently Opened</div>
       
-      <Show when={!recentFiles.loading && recentFiles()?.length === 0}>
+      <Show when={!recentFilesQuery.isLoading && recentFiles()?.length === 0}>
         <div style={{ padding: '8px', color: 'var(--text-muted)' }}>
           No recently opened files found.
         </div>

@@ -1,0 +1,103 @@
+.cx-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 20, 0.55);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.cx-modal {
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-elevated, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--r-lg, 14px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: cx-modal-in 140ms ease;
+}
+
+@keyframes cx-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cx-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.cx-modal-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary, #16181f);
+  font-family: var(--font-display, inherit);
+}
+
+.cx-modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+  display: flex;
+  padding: 4px;
+  border-radius: 8px;
+}
+.cx-modal-close:hover { background: var(--bg-base, #f3f4f6); }
+
+.cx-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.cx-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #374151);
+}
+.cx-field input,
+.cx-field textarea,
+.cx-field select {
+  height: 36px;
+  padding: 0 10px;
+  background: var(--bg-base, #fff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--r-md, 8px);
+  font-size: 13px;
+  color: var(--text-primary, #16181f);
+  font-family: var(--font-display, inherit);
+  width: 100%;
+}
+.cx-field textarea {
+  height: auto;
+  min-height: 90px;
+  padding: 10px;
+  resize: vertical;
+}
+
+.cx-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.cx-modal-error {
+  color: #dc2626;
+  font-size: 12px;
+}

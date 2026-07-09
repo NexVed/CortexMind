@@ -3,19 +3,24 @@ import {
   FilePlus,
   BrainCircuit,
   ArrowRightLeft,
-  Upload,
+  FolderPlus,
   Sparkles,
 } from 'lucide-solid';
 
+interface Props {
+  // Called with a route path when a quick action is clicked.
+  onNavigate: (path: string) => void;
+}
+
 const quickActions = [
-  { icon: FilePlus, label: 'New Task' },
-  { icon: BrainCircuit, label: 'New Decision' },
-  { icon: ArrowRightLeft, label: 'New Handoff' },
-  { icon: Upload, label: 'Upload File' },
-  { icon: Sparkles, label: 'Ask Cortex (AI)' },
+  { icon: FilePlus, label: 'New Task', path: '/tasks' },
+  { icon: BrainCircuit, label: 'New Decision', path: '/vaults' },
+  { icon: ArrowRightLeft, label: 'New Handoff', path: '/handoffs' },
+  { icon: FolderPlus, label: 'Add Project', path: '/projects' },
+  { icon: Sparkles, label: 'Build System Prompt', path: '/ai-context' },
 ];
 
-export const QuickActionsCard: Component = () => {
+export const QuickActionsCard: Component<Props> = (props) => {
   return (
     <div class="dash-quick-card">
       <span class="dash-card-title">Quick Actions</span>
@@ -25,7 +30,11 @@ export const QuickActionsCard: Component = () => {
           {(action) => {
             const Icon = action.icon;
             return (
-              <button class="dash-quick-item" id={`quick-${action.label.toLowerCase().replace(/\s+/g, '-')}`}>
+              <button
+                class="dash-quick-item"
+                id={`quick-${action.label.toLowerCase().replace(/\s+/g, '-')}`}
+                onClick={() => props.onNavigate(action.path)}
+              >
                 <Icon size={16} />
                 {action.label}
               </button>

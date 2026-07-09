@@ -16,6 +16,23 @@ func (s *Service) RegisterRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/cortex/providers", s.handleSetProviders)
 	se.Router.GET("/api/cortex/knowledge-graph/{project}", s.handleKnowledgeGraph)
 
+	// GitHub repository listing/import (uses the stored access token, fully
+	// paginated so all repos are visible — not just the first page).
+	se.Router.GET("/api/cortex/github/repos", s.handleListGitHubRepos)
+	se.Router.POST("/api/cortex/github/sync", s.handleSyncGitHubRepos)
+
+	// Portable memory bundle export (.cortex/memory.json + README.md). Pass
+	// ?push=true to commit AND push it to GitHub for teammates.
+	se.Router.POST("/api/cortex/export/{project}", s.handleExportMemory)
+
+	// Session digests (compressed agent-session summaries).
+	se.Router.POST("/api/cortex/session-digest/{project}", s.handleGenerateDigest)
+	se.Router.GET("/api/cortex/session-digests/{project}", s.handleListDigests)
+
+	// Code graph (codebase memory: structure + dependency graph).
+	se.Router.POST("/api/cortex/code-graph/{project}", s.handleBuildCodeGraph)
+	se.Router.GET("/api/cortex/code-graph/{project}", s.handleGetCodeGraph)
+
 	// MCP connection management (per-IDE authorization tokens).
 	se.Router.GET("/api/cortex/mcp/connections", s.handleListConnections)
 	se.Router.POST("/api/cortex/mcp/connections", s.handleCreateConnection)
@@ -111,6 +128,58 @@ func (s *Service) handleKnowledgeGraph(e *core.RequestEvent) error {
 		return e.JSON(200, map[string]any{"nodes": []any{}, "edges": []any{}})
 	}
 	return e.JSON(200, graph)
+}
+
+// ── Session digests ────────────────────────────────────
+
+func (s *Service) handleGenerateDigest(e *core.RequestEvent) error {
+	user, err := s.resolveUser(e)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	projectID := e.Request.PathValue("project")
+	var body struct {
+		SessionID string `json:"session_id"`
+	}
+	_ = e.BindBody(&body)
+	res, err := s.GenerateSessionDigest(e.Request.Context(), user, projectID, body.SessionID)
+	if err != nil {
+		return e.InternalServerError(err.Error(), nil)
+	}
+	return e.JSON(200, res)
+}
+
+func (s *Service) handleListDigests(e *core.RequestEvent) error {
+	projectID := e.Request.PathValue("project")
+	res, err := s.ListSessionDigests(projectID, 50)
+	if err != nil {
+		return e.InternalServerError(err.Error(), nil)
+	}
+	return e.JSON(200, res)
+}
+
+// ── Code graph ─────────────────────────────────────────
+
+func (s *Service) handleBuildCodeGraph(e *core.RequestEvent) error {
+	user, err := s.resolveUser(e)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	projectID := e.Request.PathValue("project")
+	res, err := s.BuildAndStoreCodeGraph(e.Request.Context(), user, projectID)
+	if err != nil {
+		return e.InternalServerError(err.Error(), nil)
+	}
+	return e.JSON(200, res)
+}
+
+func (s *Service) handleGetCodeGraph(e *core.RequestEvent) error {
+	projectID := e.Request.PathValue("project")
+	res, err := s.GetCodeGraph(projectID)
+	if err != nil {
+		return e.NotFoundError(err.Error(), nil)
+	}
+	return e.JSON(200, res)
 }
 
 // ── MCP connection management ──────────────────────────

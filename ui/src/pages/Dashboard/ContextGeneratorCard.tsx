@@ -5,6 +5,7 @@ interface Props {
   decisions: number;
   files: number;
   tasks: number;
+  onGenerate: () => void;
 }
 
 export const ContextGeneratorCard: Component<Props> = (props) => {
@@ -42,7 +43,7 @@ export const ContextGeneratorCard: Component<Props> = (props) => {
       </div>
 
       {/* Generate Button */}
-      <button class="dash-generate-btn" id="generate-context-btn">
+      <button class="dash-generate-btn" id="generate-context-btn" onClick={() => props.onGenerate()}>
         <Sparkles size={16} />
         Generate Context
       </button>

@@ -4,12 +4,26 @@
 // Bearer token. Each AI client expects that wired up in its own config format —
 // this catalog produces the exact snippet + steps for every supported platform.
 
+import claudeIcon from '../../icons/claude-color.svg';
+import claudeCodeIcon from '../../icons/claudecode-color.svg';
+import codexIcon from '../../icons/codex-color.svg';
+import cursorIcon from '../../icons/cursor.svg';
+import geminiCliIcon from '../../icons/geminicli-color.svg';
+import githubCopilotIcon from '../../icons/githubcopilot.svg';
+import kiroIcon from '../../icons/kiro-color.svg';
+import antigravityIcon from '../../icons/antigravity-color.svg';
+import openaiIcon from '../../icons/openai.svg';
+import opencodeIcon from '../../icons/opencode.svg';
+import windsurfIcon from '../../icons/windsurf.svg';
+
 export type IntegrationGroup = 'cli' | 'web' | 'ide';
 
 export interface PlatformIntegration {
   id: string;
   label: string;
+  subtitle?: string;
   group: IntegrationGroup;
+  icon?: string;
   language: 'json' | 'toml' | 'yaml' | 'bash' | 'text';
   /** File the snippet goes into (omitted for CLI commands). */
   file?: string;
@@ -38,7 +52,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'claude-code',
     label: 'Claude Code',
+    subtitle: 'Anthropic',
     group: 'cli',
+    icon: claudeCodeIcon,
     language: 'bash',
     build: (endpoint, token) =>
       `claude mcp add --transport http cortex ${endpoint} \\\n  --header "Authorization: Bearer ${token}"`,
@@ -51,7 +67,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'codex',
     label: 'Codex',
+    subtitle: 'OpenAI',
     group: 'cli',
+    icon: codexIcon,
     language: 'toml',
     file: '~/.codex/config.toml',
     build: (endpoint, token) =>
@@ -66,7 +84,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'gemini-cli',
     label: 'Gemini CLI',
+    subtitle: 'Google',
     group: 'cli',
+    icon: geminiCliIcon,
     language: 'json',
     file: '~/.gemini/settings.json',
     build: (endpoint, token) =>
@@ -84,7 +104,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'github-copilot',
     label: 'GitHub Copilot',
+    subtitle: 'GitHub',
     group: 'cli',
+    icon: githubCopilotIcon,
     language: 'json',
     file: '.vscode/mcp.json',
     build: (endpoint, token) =>
@@ -102,7 +124,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'opencode',
     label: 'OpenCode',
+    subtitle: 'OpenAI',
     group: 'cli',
+    icon: opencodeIcon,
     language: 'json',
     file: 'opencode.json',
     build: (endpoint, token) =>
@@ -120,29 +144,15 @@ export const PLATFORMS: PlatformIntegration[] = [
       'Restart OpenCode to load the cortex tools.',
     ],
   },
-  {
-    id: 'factory',
-    label: 'Factory',
-    group: 'cli',
-    language: 'json',
-    file: '~/.factory/mcp.json',
-    build: (endpoint, token) =>
-      JSON.stringify(
-        { mcpServers: { cortex: { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${token}` } } } },
-        null,
-        2
-      ),
-    steps: [
-      'Add the server to ~/.factory/mcp.json (or via Factory Settings → MCP Servers → Add).',
-      'Factory droid will expose the cortex_* tools in its sessions.',
-    ],
-  },
+
 
   // ── Web clients ────────────────────────────────────
   {
     id: 'claude-ai',
     label: 'Claude.ai',
+    subtitle: 'Anthropic',
     group: 'web',
+    icon: claudeIcon,
     language: 'text',
     requiresPublicUrl: true,
     build: (endpoint, token) =>
@@ -157,7 +167,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'chatgpt',
     label: 'ChatGPT',
+    subtitle: 'OpenAI',
     group: 'web',
+    icon: openaiIcon,
     language: 'text',
     requiresPublicUrl: true,
     build: (endpoint, token) =>
@@ -169,26 +181,15 @@ export const PLATFORMS: PlatformIntegration[] = [
     ],
     note: 'Requires a public HTTPS tunnel — localhost is not reachable from ChatGPT.',
   },
-  {
-    id: 'goose',
-    label: 'Goose',
-    group: 'web',
-    language: 'yaml',
-    file: '~/.config/goose/config.yaml',
-    build: (endpoint, token) =>
-      `extensions:\n  cortex:\n    type: streamable_http\n    name: cortex\n    uri: ${endpoint}\n    headers:\n      Authorization: "Bearer ${token}"\n    enabled: true\n    timeout: 300`,
-    steps: [
-      'Run `goose configure` → Add Extension → Remote Extension (Streaming HTTP), or edit the YAML directly.',
-      'Set the URI to the CORTEX /mcp endpoint and add the Authorization header.',
-      'Start Goose; the cortex tools load automatically.',
-    ],
-  },
+
 
   // ── IDEs ───────────────────────────────────────────
   {
     id: 'cursor',
     label: 'Cursor',
+    subtitle: 'Cursor',
     group: 'ide',
+    icon: cursorIcon,
     language: 'json',
     file: '~/.cursor/mcp.json (or .cursor/mcp.json)',
     build: (endpoint, token) => mcpServersUrl(endpoint, token),
@@ -199,26 +200,11 @@ export const PLATFORMS: PlatformIntegration[] = [
     ],
   },
   {
-    id: 'vscode',
-    label: 'VS Code',
-    group: 'ide',
-    language: 'json',
-    file: '.vscode/mcp.json',
-    build: (endpoint, token) =>
-      JSON.stringify(
-        { servers: { cortex: { type: 'http', url: endpoint, headers: { Authorization: `Bearer ${token}` } } } },
-        null,
-        2
-      ),
-    steps: [
-      'Create .vscode/mcp.json in your workspace (VS Code uses "servers", not "mcpServers").',
-      'Open the Chat view in Agent mode and confirm the cortex tools are listed.',
-    ],
-  },
-  {
     id: 'antigravity',
     label: 'Antigravity',
+    subtitle: 'Antigravity',
     group: 'ide',
+    icon: antigravityIcon,
     language: 'json',
     file: 'Antigravity → Settings → MCP',
     build: (endpoint, token) => mcpServersUrl(endpoint, token),
@@ -231,7 +217,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'kiro',
     label: 'Kiro',
+    subtitle: 'Kiro',
     group: 'ide',
+    icon: kiroIcon,
     language: 'json',
     file: '.kiro/settings/mcp.json (or ~/.kiro/settings/mcp.json)',
     build: (endpoint, token) =>
@@ -258,7 +246,9 @@ export const PLATFORMS: PlatformIntegration[] = [
   {
     id: 'windsurf',
     label: 'Windsurf',
+    subtitle: 'Codeium',
     group: 'ide',
+    icon: windsurfIcon,
     language: 'json',
     file: '~/.codeium/windsurf/mcp_config.json',
     build: (endpoint, token) => mcpServersUrl(endpoint, token, 'serverUrl'),

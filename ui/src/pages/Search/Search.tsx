@@ -10,6 +10,7 @@ import {
   BrainCircuit,
 } from 'lucide-solid';
 import { searchAll, SearchResult } from '../../api/client';
+import { isEnabled } from '../../api/settings';
 import './Search.css';
 
 const getCollectionIcon = (collection: string) => {
@@ -141,10 +142,11 @@ export const SearchPage: Component = () => {
                       <span class="search-result-project">{result.project_id || 'Global'}</span>
                     </div>
                     <h3 class="search-result-title">{result.title}</h3>
-                    <p class="search-result-excerpt">
-                      {/* Highlight match simply by rendering excerpt. In a real app we'd inject <strong> */}
-                      {result.excerpt}
-                    </p>
+                    <Show when={isEnabled('Show file previews') && result.excerpt}>
+                      <p class="search-result-excerpt">
+                        {result.excerpt}
+                      </p>
+                    </Show>
                   </div>
                   <button class="search-result-action">
                     <ChevronRight size={20} />

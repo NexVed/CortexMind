@@ -1,4 +1,5 @@
-import { Component, For, createSignal, createResource, Show } from 'solid-js';
+import { Component, For, createSignal, Show } from 'solid-js';
+import { useSearchParams } from '@solidjs/router';
 import {
   BrainCircuit,
   Bot,
@@ -10,14 +11,19 @@ import {
   Copy,
   Check,
 } from 'lucide-solid';
-import { listProjects, generateSystemPrompt } from '../../api/client';
+import { generateSystemPrompt } from '../../api/client';
+import { useProjects } from '../../api/queries';
+import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
 import './AIContext.css';
 
 const placeholderPrompt =
-  'Select a scanned project and click "Generate System Prompt" to compile a tailored agent prompt from its tech stack, authentication, features, structure, decisions and active tasks.';
+  'Select a scanned project and click "Generate System Prompt" to compile a tailored, copy-paste-ready prompt from its tech stack, authentication, features, structure, decisions and active tasks — then paste it into ChatGPT, Claude or any coding agent. No AI API required.';
 
 export const AIContextPage: Component = () => {
-  const [selectedProject, setSelectedProject] = createSignal<string>('');
+  const [searchParams] = useSearchParams();
+  const [selectedProject, setSelectedProject] = createSignal<string>(
+    typeof searchParams.project === 'string' ? searchParams.project : ''
+  );
   const [includeTasks, setIncludeTasks] = createSignal(true);
   const [includeVault, setIncludeVault] = createSignal(true);
   const [includeActivity, setIncludeActivity] = createSignal(false);
@@ -29,7 +35,8 @@ export const AIContextPage: Component = () => {
   const [error, setError] = createSignal<string>('');
 
   // Fetch real projects for the dropdown
-  const [projects] = createResource(() => listProjects());
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
 
   const promptLines = () => (prompt() ? prompt().split('\n') : placeholderPrompt.split('\n'));
 
@@ -72,7 +79,7 @@ export const AIContextPage: Component = () => {
           </div>
           <div>
             <h1 class="page-title">AI Agent Prompt Builder</h1>
-            <p class="page-subtitle">Generate a project-specific system prompt from your scanned codebase</p>
+            <p class="page-subtitle">Compile a copy-paste system prompt from your scanned codebase — paste it into ChatGPT, Claude or any agent</p>
           </div>
         </div>
       </div>
@@ -82,20 +89,12 @@ export const AIContextPage: Component = () => {
         <div class="context-config">
           <div class="config-card">
             <h3>Target Project</h3>
-            <div class="custom-select">
-              <select
-                value={selectedProject()}
-                onChange={(e) => setSelectedProject(e.currentTarget.value)}
-              >
-                <option value="" disabled>Choose a scanned project…</option>
-                <Show when={projects()}>
-                  <For each={projects()}>
-                    {(p) => <option value={p.id}>{p.name}</option>}
-                  </For>
-                </Show>
-              </select>
-              <ChevronDown size={16} class="select-icon" />
-            </div>
+            <ProjectSelect
+              projects={projects() || []}
+              selectedId={selectedProject()}
+              onChange={setSelectedProject}
+              placeholder="Choose a scanned project…"
+            />
           </div>
 
           <div class="config-card">
@@ -151,20 +150,6 @@ export const AIContextPage: Component = () => {
             </div>
           </div>
 
-          <div class="config-card target-agent-card">
-            <h3>Target Agent</h3>
-            <div class="agent-pills">
-              <button class="agent-pill active">
-                <Bot size={14} /> Generic LLM
-              </button>
-              <button class="agent-pill">
-                <Bot size={14} /> Cursor IDE
-              </button>
-              <button class="agent-pill">
-                <Bot size={14} /> Copilot
-              </button>
-            </div>
-          </div>
 
           <button
             class={`btn primary large generate-btn ${isGenerating() ? 'generating' : ''}`}
@@ -188,9 +173,7 @@ export const AIContextPage: Component = () => {
             <h3>System Prompt</h3>
             <div class="preview-actions">
               <Show when={provider()}>
-                <span class={`provider-badge ${provider() === 'heuristic' ? 'muted' : ''}`}>
-                  {provider() === 'heuristic' ? 'offline (no LLM)' : provider()}
-                </span>
+                <span class="provider-badge">Built locally</span>
               </Show>
               <span class="token-count">~{tokenEstimate() || Math.round(placeholderPrompt.length / 4)} tokens</span>
               <button class="btn secondary small" onClick={handleCopy} disabled={!prompt()}>

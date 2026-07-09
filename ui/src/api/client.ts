@@ -170,6 +170,10 @@ export async function listProjects(): Promise<Project[]> {
   return res.items;
 }
 
+export async function getProject(id: string): Promise<Project> {
+  return pbFetch<Project>(`/api/collections/projects/records/${id}`);
+}
+
 export async function createProject(data: {
   name: string;
   path?: string;
@@ -354,6 +358,50 @@ export async function listActivity(limit = 10): Promise<ActivityLogEntry[]> {
   return res.items;
 }
 
+// Notifications (derived from activity log)
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  unread: boolean;
+  category: 'digest' | 'scan' | 'handoff' | 'task';
+}
+
+function relativeTime(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function categoryFromAction(action: string): Notification['category'] {
+  const a = action.toLowerCase();
+  if (a.includes('scan') || a.includes('index')) return 'scan';
+  if (a.includes('digest') || a.includes('compress')) return 'digest';
+  if (a.includes('handoff') || a.includes('transfer')) return 'handoff';
+  if (a.includes('task') || a.includes('complete') || a.includes('done')) return 'task';
+  return 'digest';
+}
+
+export async function listNotifications(limit = 20): Promise<Notification[]> {
+  const entries = await listActivity(limit);
+  const oneHourAgo = Date.now() - 3600_000;
+  return entries.map(e => ({
+    id: e.id,
+    title: e.action || 'Activity',
+    message: e.subject || '',
+    time: relativeTime(e.created),
+    unread: new Date(e.created).getTime() > oneHourAgo,
+    category: categoryFromAction(e.action),
+  }));
+}
+
+
 // File Index (for recently opened)
 export async function listRecentFiles(limit = 4): Promise<FileIndexEntry[]> {
   const res = await pbFetch<PBListResult<FileIndexEntry>>(
@@ -528,6 +576,120 @@ export async function generateSystemPrompt(
   });
 }
 
+// ── Session digests ────────────────────────────────────
+
+export interface SessionDigest {
+  id: string;
+  project_id: string;
+  project_name: string;
+  session_id: string;
+  ide: string;
+  title: string;
+  summary_md: string;
+  digest_json: Record<string, any>;
+  provider: string; // mistral | ollama | heuristic
+  token_count: number;
+  memory_count: number;
+  created: string;
+}
+
+// Compress a project's agent-session memories into a stored digest (markdown + compact JSON).
+export async function generateSessionDigest(
+  projectId: string,
+  sessionId?: string
+): Promise<SessionDigest> {
+  return cortexFetch<SessionDigest>(`/api/cortex/session-digest/${projectId}`, {
+    method: 'POST',
+    body: JSON.stringify(sessionId ? { session_id: sessionId } : {}),
+  });
+}
+
+export async function listSessionDigests(projectId: string): Promise<SessionDigest[]> {
+  const res = await cortexFetch<SessionDigest[] | null>(`/api/cortex/session-digests/${projectId}`);
+  return res ?? [];
+}
+
+// ── Code graph (codebase memory) ───────────────────────
+
+export interface CodeGraphNode {
+  id: string;
+  label: string;
+  type: 'dir' | 'file' | 'function' | 'class' | 'package';
+  path?: string;
+  lang?: string;
+  line?: number;
+  public?: boolean;
+  degree: number;
+}
+
+export interface CodeGraphEdge {
+  source: string;
+  target: string;
+  rel: 'contains' | 'defines' | 'imports' | 'depends_on';
+}
+
+export interface CodeGraphStats {
+  dirs: number;
+  files: number;
+  functions: number;
+  classes: number;
+  packages: number;
+  edges: number;
+  internal_deps: number;
+  external_deps: number;
+}
+
+export interface CodeGraphResult {
+  project_id: string;
+  project_name: string;
+  nodes: CodeGraphNode[];
+  edges: CodeGraphEdge[];
+  stats: CodeGraphStats;
+  generated_at: string;
+  built: boolean;
+}
+
+// Build (or rebuild) the codebase memory graph from the project's indexed files.
+export async function buildCodeGraph(projectId: string): Promise<CodeGraphResult> {
+  return cortexFetch<CodeGraphResult>(`/api/cortex/code-graph/${projectId}`, {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
+// Fetch the stored code graph (built=false when it hasn't been generated yet).
+export async function getCodeGraph(projectId: string): Promise<CodeGraphResult> {
+  return cortexFetch<CodeGraphResult>(`/api/cortex/code-graph/${projectId}`);
+}
+
+// ── Agent memory ───────────────────────────────────────
+
+export interface AgentMemory {
+  id: string;
+  project: string;
+  owner: string;
+  ide: string;
+  client_name: string;
+  session_id: string;
+  category: string; // context | progress | decision | note | handoff
+  title: string;
+  content: string;
+  tags: string[];
+  created: string;
+  updated: string;
+}
+
+// List the agent working-memory entries for a project (most recent first).
+// Memories are written by AI clients over MCP (cortex_save_memory), tagged
+// with the IDE/client and session that produced them.
+export async function listAgentMemories(projectId: string): Promise<AgentMemory[]> {
+  if (!projectId) return [];
+  const res = await pbFetch<PBListResult<AgentMemory>>(
+    `/api/collections/agent_memories/records?sort=-created&perPage=500&filter=(project="${projectId}")`
+  );
+  return res.items;
+}
+
 // ── MCP connections ────────────────────────────────────
 
 export interface MCPConnection {
@@ -564,6 +726,53 @@ export async function deleteMCPConnection(id: string): Promise<{ success: boolea
   return cortexFetch<{ success: boolean }>(`/api/cortex/mcp/connections/${id}`, {
     method: 'DELETE',
   });
+}
+
+// ── Reset all data ─────────────────────────────────────
+
+async function pbDelete(collection: string, id: string): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const token = pb.authStore.token;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  await fetch(`${API_BASE}/api/collections/${collection}/records/${id}`, {
+    method: 'DELETE',
+    headers,
+  });
+}
+
+// resetAllData wipes every CORTEX record owned by the current user. Deleting a
+// project cascades to its project-scoped children (file_index, scan_results,
+// code_graphs, etc.), so projects go first; the remaining owner-scoped
+// collections are cleared directly.
+// ponytail: sequential first-page-until-empty wipe (global, no batching) —
+// fine for a local single-user DB; switch to a bulk server endpoint if the
+// data set ever grows large.
+export async function resetAllData(): Promise<void> {
+  const collections = [
+    'projects', // cascades to project-scoped children
+    'vault_entries',
+    'tasks',
+    'handoffs',
+    'agent_memories',
+    'session_digests',
+    'activity_log',
+    'search_history',
+    'mcp_tokens',
+  ];
+  for (const coll of collections) {
+    for (let guard = 0; guard < 1000; guard++) {
+      let res: PBListResult<{ id: string }>;
+      try {
+        res = await pbFetch<PBListResult<{ id: string }>>(
+          `/api/collections/${coll}/records?perPage=200`
+        );
+      } catch {
+        break; // collection missing or not permitted — skip
+      }
+      if (!res.items.length) break;
+      await Promise.all(res.items.map((it) => pbDelete(coll, it.id).catch(() => {})));
+    }
+  }
 }
 
 export async function getMCPConnectionStatus(id: string): Promise<MCPConnection> {

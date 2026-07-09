@@ -24,25 +24,11 @@
   margin-bottom: var(--s6);
 }
 
-.sidebar-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--r-sm);
-  background: var(--primary-dark);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  flex-shrink: 0;
-}
-
-.sidebar-brand-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: 0.5px;
+.sidebar-logo-img {
+  height: 48px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 /* --- Navigation --- */

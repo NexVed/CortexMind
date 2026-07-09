@@ -60,14 +60,15 @@ func NewClient(token string) *Client {
 
 // Repo is a minimal subset of the GitHub repository object.
 type Repo struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	FullName string `json:"full_name"`
-	Private  bool   `json:"private"`
-	HTMLURL  string `json:"html_url"`
-	CloneURL string `json:"clone_url"`
-	Language string `json:"language"`
-	Default  string `json:"default_branch"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	FullName    string `json:"full_name"`
+	Description string `json:"description"`
+	Private     bool   `json:"private"`
+	HTMLURL     string `json:"html_url"`
+	CloneURL    string `json:"clone_url"`
+	Language    string `json:"language"`
+	Default     string `json:"default_branch"`
 }
 
 // Org is a minimal subset of the GitHub organization object.
@@ -101,16 +102,25 @@ func (c *Client) do(method, path string, out any) error {
 	return json.Unmarshal(body, out)
 }
 
+// ListUserRepos returns every repository the authenticated user can access:
+// repos they own, repos they collaborate on, and repos in their organizations,
+// across both public and private visibility. GitHub paginates at 100 items per
+// page, so we walk pages until a short page signals the end. We explicitly pass
+// affiliation + visibility because the API's defaults can silently omit org and
+// collaborator repositories for some token types.
 func (c *Client) ListUserRepos() ([]Repo, error) {
 	var all []Repo
-	for page := 1; page <= 10; page++ { // cap at 1000 repos
+	const perPage = 100
+	for page := 1; page <= 50; page++ { // cap at 5000 repos
 		var batch []Repo
-		path := fmt.Sprintf("/user/repos?per_page=100&sort=updated&page=%d", page)
+		path := fmt.Sprintf(
+			"/user/repos?per_page=%d&page=%d&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member",
+			perPage, page)
 		if err := c.do(http.MethodGet, path, &batch); err != nil {
 			return all, err
 		}
 		all = append(all, batch...)
-		if len(batch) < 100 {
+		if len(batch) < perPage {
 			break
 		}
 	}

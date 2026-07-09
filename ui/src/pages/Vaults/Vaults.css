@@ -9,6 +9,13 @@
   overflow: hidden;
 }
 
+/* The flex `gap` already spaces the header from the content row; the global
+   .page-header margin-bottom would double it, leaving a dead band above the
+   search bar and panels. */
+.vaults-page .page-header {
+  margin-bottom: 0;
+}
+
 .vaults-layout {
   display: flex;
   gap: var(--s5);
@@ -32,6 +39,13 @@
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   padding: 8px 12px;
+}
+
+/* Vault search sits above the category list — keep it a little narrower. */
+.vaults-sidebar .search-box {
+  align-self: flex-start;
+  width: 240px;
+  max-width: 100%;
 }
 
 .search-icon {
@@ -157,7 +171,6 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  flex: 1;
 }
 
 .vault-card-tags {
@@ -181,6 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-top: auto;
   padding-top: var(--s3);
   border-top: 1px solid var(--border);
 }

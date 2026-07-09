@@ -105,14 +105,28 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
   };
 
   const syncGitHubRepos = async (token: string) => {
-    const res = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-      },
-    });
-    if (!res.ok) throw new Error(`GitHub API error: ${res.statusText}`);
-    const repos = await res.json();
+    // GitHub paginates at 100 repos/page. Walk every page so users with more
+    // than 100 repositories (or repos spread across orgs) see all of them.
+    // visibility=all + affiliation ensures private, collaborator and org repos
+    // are included, not just the ones the user personally owns.
+    const repos: any[] = [];
+    for (let page = 1; page <= 50; page++) {
+      const res = await fetch(
+        `https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+      if (!res.ok) throw new Error(`GitHub API error: ${res.statusText}`);
+      const batch = await res.json();
+      if (!Array.isArray(batch) || batch.length === 0) break;
+      repos.push(...batch);
+      if (batch.length < 100) break;
+    }
 
     const existingProjects = await pb.collection('projects').getFullList();
     const existingUrls = new Set(existingProjects.map(p => p.github_url).filter(Boolean));

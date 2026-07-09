@@ -1,4 +1,4 @@
-import { Component, createSignal, For, createResource, Show } from 'solid-js';
+import { Component, createSignal, For, Show } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import {
   LayoutDashboard,
@@ -7,23 +7,25 @@ import {
   Bot,
   Sparkles,
   Search,
-  Users,
   Settings,
   Puzzle,
+  Layers,
+  Network,
+  Brain,
   ChevronDown,
 } from 'lucide-solid';
 import { useAuth } from '../../api/auth';
-import { getDaemonStatus } from '../../api/client';
+import { useDaemonStatus } from '../../api/queries';
 import './Sidebar.css';
 
-const navItems = [
+const navItems: { id: string; path: string; label: string; icon: any; badge?: string }[] = [
   { id: 'workspace', path: '/', label: 'Workspace', icon: LayoutDashboard },
   { id: 'projects', path: '/projects', label: 'Projects', icon: FolderKanban },
   { id: 'vaults', path: '/vaults', label: 'Context', icon: BookOpen },
   { id: 'agents', path: '/ai-context', label: 'Agents', icon: Bot },
-  { id: 'knowledge', path: '/graph', label: 'Knowledge', icon: Sparkles, badge: 'BETA' },
-  { id: 'divider-1', path: '', label: '', icon: null },
-  { id: 'team', path: '/handoffs', label: 'Team', icon: Users },
+  { id: 'digests', path: '/digests', label: 'Digests', icon: Layers },
+  { id: 'codegraph', path: '/code-graph', label: 'Code Graph', icon: Network },
+  { id: 'agentmemory', path: '/agent-memory', label: 'Agent Memory', icon: Brain },
   { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
   { id: 'integrations', path: '/mcp-server', label: 'Integrations', icon: Puzzle },
 ];
@@ -32,7 +34,8 @@ export const Sidebar: Component = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const [daemonStatus] = createResource(() => getDaemonStatus());
+  const daemonStatusQuery = useDaemonStatus();
+  const daemonStatus = () => daemonStatusQuery.data;
   const [showUserMenu, setShowUserMenu] = createSignal(false);
 
   const isActive = (path: string) => {
@@ -54,8 +57,7 @@ export const Sidebar: Component = () => {
     <nav class="sidebar">
       {/* Brand */}
       <div class="sidebar-brand">
-        <div class="sidebar-logo">C</div>
-        <span class="sidebar-brand-name">CORTEX</span>
+        <img src="/logowithname.png" alt="CORTEX" class="sidebar-logo-img" />
       </div>
 
       {/* Navigation */}

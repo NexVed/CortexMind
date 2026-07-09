@@ -1,6 +1,16 @@
-import { Component, For, createSignal, createResource, createEffect, Show } from 'solid-js';
-import { Settings, Palette, FolderGit2, BrainCircuit, Server, GitBranch, Keyboard, Info } from 'lucide-solid';
-import { getProviderConfig, setProviderConfig, type ProviderConfig } from '../../api/client';
+import { Component, For, createSignal, createEffect, Show } from 'solid-js';
+import { Settings, Palette, FolderGit2, BrainCircuit, Server, GitBranch, Keyboard, Info, Trash2, Plus, Plug } from 'lucide-solid';
+import { type ProviderConfig, type MCPConnection } from '../../api/client';
+import {
+  useProviderConfig,
+  useSetProviderConfig,
+  useMCPConnections,
+  useCreateMCPConnection,
+  useDeleteMCPConnection,
+  useResetAllData,
+} from '../../api/queries';
+import { settings, isEnabled, setToggle, setTheme, setSidebarPosition, resetSettings, modKey, type Theme, type SidebarPosition } from '../../api/settings';
+import { useAuth } from '../../api/auth';
 import '../shared.css';
 
 const settingsCategories = [
@@ -22,40 +32,70 @@ const generalSettings = [
 ];
 
 const appearanceSettings = [
-  { label: 'Theme', description: 'Choose your preferred appearance', type: 'select', options: ['Light', 'Dark', 'System'], value: 'Light' },
-  { label: 'Sidebar position', description: 'Place the sidebar on the left or right', type: 'select', options: ['Left', 'Right'], value: 'Left' },
-  { label: 'Compact mode', description: 'Reduce spacing for more information density', type: 'toggle', enabled: false },
-  { label: 'Show file previews', description: 'Display file content previews in search results', type: 'toggle', enabled: true },
+  { label: 'Theme', description: 'Choose your preferred appearance', type: 'theme', options: ['Light', 'Dark', 'System'] },
+  { label: 'Sidebar position', description: 'Place the sidebar on the left or right', type: 'sidebar', options: ['Left', 'Right'] },
+  { label: 'Compact mode', description: 'Reduce spacing for more information density', type: 'toggle' },
+  { label: 'Show file previews', description: 'Display file content previews in search results', type: 'toggle' },
+];
+
+const repoDefaultSettings = [
+  { label: 'Auto-scan on import', description: 'Automatically run a deep scan when a new repository is imported via GitHub' },
+  { label: 'Deep analysis', description: 'Use LLM to generate richer summaries during scan (slower but more detailed)' },
+  { label: 'Include hidden files', description: 'Index dot-files and dot-directories (e.g. .github, .vscode) during scan' },
+  { label: 'Extract functions & classes', description: 'Parse source files to extract function signatures and class definitions' },
+];
+
+const syncGitSettings = [
+  { label: 'Auto-commit memory bundle', description: 'Automatically commit .cortex/memory.json to the project repo after export' },
+  { label: 'Push on export', description: 'Push the committed memory bundle to the remote origin after export' },
+  { label: 'Include vault entries', description: 'Include knowledge vault entries in the exported memory bundle' },
+  { label: 'Include agent memories', description: 'Include raw agent working-memory entries in the exported bundle' },
 ];
 
 const shortcuts = [
-  { action: 'Global search', keys: '⌘ K' },
-  { action: 'New project', keys: '⌘ N' },
-  { action: 'New handoff', keys: '⌘ Shift H' },
-  { action: 'Generate context', keys: '⌘ Shift G' },
-  { action: 'Toggle sidebar', keys: '⌘ B' },
-  { action: 'Toggle theme', keys: '⌘ Shift T' },
-  { action: 'Navigate to Dashboard', keys: '⌘ 1' },
-  { action: 'Navigate to Projects', keys: '⌘ 2' },
+  { action: 'Global search', keys: `${modKey} K` },
+  { action: 'New project', keys: `${modKey} N` },
+  { action: 'New handoff', keys: `${modKey} Shift H` },
+  { action: 'Generate context', keys: `${modKey} Shift G` },
+  { action: 'Toggle sidebar', keys: `${modKey} B` },
+  { action: 'Toggle theme', keys: `${modKey} Shift T` },
+  { action: 'Navigate to Dashboard', keys: `${modKey} 1` },
+  { action: 'Navigate to Projects', keys: `${modKey} 2` },
 ];
 
 export const SettingsPage: Component = () => {
+  const { logout } = useAuth();
   const [activeCategory, setActiveCategory] = createSignal('general');
-  const [toggleStates, setToggleStates] = createSignal<Record<string, boolean>>({
-    'Auto-scan repositories': true,
-    'Live file watching': true,
-    'Send anonymous usage data': false,
-    'Auto-update': true,
-    'Compact mode': false,
-    'Show file previews': true,
-  });
 
-  const toggle = (label: string) => {
-    setToggleStates(prev => ({ ...prev, [label]: !prev[label] }));
+  // Preferences are backed by the shared, persisted settings store.
+  const toggle = (label: string) => setToggle(label);
+
+  const resetM = useResetAllData();
+
+  // ── Reset all data ───────────────────────────────────
+  const [resetting, setResetting] = createSignal(false);
+  const handleReset = async () => {
+    const confirmed = window.confirm(
+      'This permanently deletes ALL CORTEX data — projects, memories, handoffs, ' +
+      'tasks, digests, and settings. This cannot be undone.\n\nContinue?'
+    );
+    if (!confirmed) return;
+    setResetting(true);
+    try {
+      await resetM.mutateAsync();
+      resetSettings();
+      logout();
+      window.location.href = '/';
+    } catch (err: any) {
+      alert(err?.message || 'Failed to reset data');
+      setResetting(false);
+    }
   };
 
   // ── AI Agents / provider configuration ───────────────
-  const [providers, { refetch: refetchProviders }] = createResource(getProviderConfig);
+  const providersQuery = useProviderConfig();
+  const providers = () => providersQuery.data;
+  const setProviderM = useSetProviderConfig();
   const [form, setForm] = createSignal<ProviderConfig | null>(null);
   const [saving, setSaving] = createSignal(false);
   const [saveMsg, setSaveMsg] = createSignal('');
@@ -78,16 +118,36 @@ export const SettingsPage: Component = () => {
       // Skip the masked key so the stored secret isn't overwritten with dots.
       const payload: Partial<ProviderConfig> = { ...f };
       if (f.mistral_key && f.mistral_key.includes('•')) delete payload.mistral_key;
-      const updated = await setProviderConfig(payload);
+      const updated = await setProviderM.mutateAsync(payload);
       setForm({ ...updated });
       setSaveMsg('Saved');
-      refetchProviders();
     } catch (err: any) {
       setSaveMsg(err?.message || 'Failed to save');
     } finally {
       setSaving(false);
       setTimeout(() => setSaveMsg(''), 3000);
     }
+  };
+
+  // ── MCP connections ──────────────────────────────────
+  const mcpQuery = useMCPConnections();
+  const mcpConnections = () => mcpQuery.data;
+  const createConnM = useCreateMCPConnection();
+  const deleteConnM = useDeleteMCPConnection();
+  const [creatingConn, setCreatingConn] = createSignal(false);
+
+  const handleCreateConnection = async () => {
+    setCreatingConn(true);
+    try {
+      await createConnM.mutateAsync({ ide: 'generic', label: 'New Connection' });
+    } catch { /* ignore */ }
+    setCreatingConn(false);
+  };
+
+  const handleDeleteConnection = async (id: string) => {
+    try {
+      await deleteConnM.mutateAsync(id);
+    } catch { /* ignore */ }
   };
 
   const inputStyle = {
@@ -100,7 +160,17 @@ export const SettingsPage: Component = () => {
   return (
     <div class="page">
       <div class="page-header">
-        <h1>Settings</h1>
+        <div class="page-title-row" style={{ display: 'flex', 'align-items': 'center', gap: 'var(--s4)' }}>
+          <div class="page-title-icon pink">
+            <Settings size={24} />
+          </div>
+          <div>
+            <h1 class="page-title" style={{ margin: 0 }}>Settings</h1>
+            <p class="page-subtitle" style={{ 'font-size': '13px', color: 'var(--text-secondary)', 'margin-top': '2px' }}>
+              Configure application settings, API keys, and model preferences
+            </p>
+          </div>
+        </div>
       </div>
 
       <div class="split-layout">
@@ -133,7 +203,7 @@ export const SettingsPage: Component = () => {
                       <span class="setting-description">{setting.description}</span>
                     </div>
                     <div
-                      class={`toggle-switch ${toggleStates()[setting.label] ? 'active' : ''}`}
+                      class={`toggle-switch ${isEnabled(setting.label) ? 'active' : ''}`}
                       onClick={() => toggle(setting.label)}
                     />
                   </div>
@@ -154,22 +224,144 @@ export const SettingsPage: Component = () => {
                     </div>
                     {setting.type === 'toggle' ? (
                       <div
-                        class={`toggle-switch ${toggleStates()[setting.label] ? 'active' : ''}`}
+                        class={`toggle-switch ${isEnabled(setting.label) ? 'active' : ''}`}
                         onClick={() => toggle(setting.label)}
                       />
                     ) : (
-                      <select style={{
-                        height: '32px', padding: '0 10px',
-                        background: 'var(--bg-base)', border: '1px solid var(--border)',
-                        'border-radius': 'var(--r-md)', 'font-size': '12px', color: 'var(--text-primary)',
-                        'font-family': 'var(--font-display)',
-                      }}>
-                        <For each={setting.options!}>{(opt) => <option>{opt}</option>}</For>
+                      <select
+                        style={{
+                          height: '32px', padding: '0 10px',
+                          background: 'var(--bg-base)', border: '1px solid var(--border)',
+                          'border-radius': 'var(--r-md)', 'font-size': '12px', color: 'var(--text-primary)',
+                          'font-family': 'var(--font-display)',
+                        }}
+                        value={setting.type === 'theme' ? settings.theme : settings.sidebarPosition}
+                        onChange={(e) => {
+                          if (setting.type === 'theme') setTheme(e.currentTarget.value as Theme);
+                          else setSidebarPosition(e.currentTarget.value as SidebarPosition);
+                        }}
+                      >
+                        <For each={setting.options!}>{(opt) => <option value={opt}>{opt}</option>}</For>
                       </select>
                     )}
                   </div>
                 )}
               </For>
+            </div>
+          )}
+
+          {activeCategory() === 'repos' && (
+            <div class="card">
+              <div class="card-title" style={{ 'margin-bottom': '4px' }}>Repository Defaults</div>
+              <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
+                Configure default behavior when importing and scanning repositories.
+              </div>
+              <For each={repoDefaultSettings}>
+                {(setting) => (
+                  <div class="setting-row">
+                    <div class="setting-info">
+                      <span class="setting-label">{setting.label}</span>
+                      <span class="setting-description">{setting.description}</span>
+                    </div>
+                    <div
+                      class={`toggle-switch ${isEnabled(setting.label) ? 'active' : ''}`}
+                      onClick={() => toggle(setting.label)}
+                    />
+                  </div>
+                )}
+              </For>
+            </div>
+          )}
+
+          {activeCategory() === 'sync' && (
+            <div class="card">
+              <div class="card-title" style={{ 'margin-bottom': '4px' }}>Sync & Git</div>
+              <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
+                Control how CORTEX memory bundles are committed and pushed to your repositories.
+              </div>
+              <For each={syncGitSettings}>
+                {(setting) => (
+                  <div class="setting-row">
+                    <div class="setting-info">
+                      <span class="setting-label">{setting.label}</span>
+                      <span class="setting-description">{setting.description}</span>
+                    </div>
+                    <div
+                      class={`toggle-switch ${isEnabled(setting.label) ? 'active' : ''}`}
+                      onClick={() => toggle(setting.label)}
+                    />
+                  </div>
+                )}
+              </For>
+            </div>
+          )}
+
+          {activeCategory() === 'mcp' && (
+            <div class="card">
+              <div class="card-title" style={{ 'margin-bottom': '4px' }}>MCP Server Connections</div>
+              <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
+                Manage IDE connections to the CORTEX MCP server. Each connection binds an IDE to your account.
+              </div>
+
+              <Show when={mcpConnections()} fallback={<div class="small">Loading connections…</div>}>
+                <Show when={mcpConnections()!.length > 0} fallback={
+                  <div class="setting-row" style={{ 'border-bottom': 'none', 'justify-content': 'center' }}>
+                    <div class="setting-info" style={{ 'text-align': 'center' }}>
+                      <Plug size={32} style={{ color: 'var(--text-muted)', opacity: '0.4', 'margin-bottom': '8px' }} />
+                      <span class="setting-label">No connections yet</span>
+                      <span class="setting-description">Create a connection to let your IDE communicate with CORTEX.</span>
+                    </div>
+                  </div>
+                }>
+                  <For each={mcpConnections()!}>
+                    {(conn: MCPConnection) => (
+                      <div class="setting-row">
+                        <div class="setting-info">
+                          <span class="setting-label">{conn.label || conn.ide || 'Connection'}</span>
+                          <span class="setting-description">
+                            IDE: {conn.ide} · Endpoint: {conn.endpoint || '—'} · Last used: {conn.last_used ? new Date(conn.last_used).toLocaleDateString() : 'never'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>
+                          <span style={{
+                            'font-size': '11px',
+                            padding: '2px 8px',
+                            'border-radius': 'var(--r-sm)',
+                            background: conn.connected ? '#E8FBF5' : 'var(--bg-elevated)',
+                            color: conn.connected ? 'var(--green)' : 'var(--text-muted)',
+                            'font-weight': '500',
+                          }}>
+                            {conn.connected ? 'Connected' : 'Offline'}
+                          </span>
+                          <button
+                            style={{
+                              background: 'transparent', border: 'none', cursor: 'pointer',
+                              color: 'var(--text-muted)', padding: '4px',
+                            }}
+                            title="Delete connection"
+                            onClick={() => handleDeleteConnection(conn.id)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </For>
+                </Show>
+              </Show>
+
+              <div class="setting-row" style={{ 'border-bottom': 'none', 'margin-top': '8px' }}>
+                <span />
+                <button
+                  class="btn primary"
+                  style={{ height: '34px', padding: '0 18px', cursor: 'pointer', display: 'flex', 'align-items': 'center', gap: '6px' }}
+                  disabled={creatingConn()}
+                  onClick={handleCreateConnection}
+                >
+                  <Plus size={14} />
+                  {creatingConn() ? 'Creating…' : 'New Connection'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -360,16 +552,6 @@ export const SettingsPage: Component = () => {
             </div>
           )}
 
-          {!['general', 'appearance', 'shortcuts', 'about', 'agents'].includes(activeCategory()) && (
-            <div class="card">
-              <div class="empty-state">
-                <Settings size={48} class="empty-state-icon" />
-                <div class="empty-state-title">{settingsCategories.find(c => c.id === activeCategory())?.label} Settings</div>
-                <div class="empty-state-text">Configuration options for this section will be available soon.</div>
-              </div>
-            </div>
-          )}
-
           {activeCategory() === 'general' && (
             <div class="card" style={{ 'margin-top': '16px', 'border-color': '#FECACA' }}>
               <div class="card-title" style={{ color: 'var(--red)', 'margin-bottom': '8px' }}>Danger Zone</div>
@@ -378,13 +560,17 @@ export const SettingsPage: Component = () => {
                   <span class="setting-label">Reset all data</span>
                   <span class="setting-description">Delete all CORTEX data including memories, handoffs, and settings.</span>
                 </div>
-                <button style={{
-                  height: '32px', padding: '0 14px',
-                  background: '#FEF2F2', color: '#DC2626',
-                  border: '1px solid #FECACA', 'border-radius': 'var(--r-md)',
-                  'font-size': '13px', 'font-weight': '500',
-                  cursor: 'pointer',
-                }}>Reset</button>
+                <button
+                  onClick={handleReset}
+                  disabled={resetting()}
+                  style={{
+                    height: '32px', padding: '0 14px',
+                    background: '#FEF2F2', color: '#DC2626',
+                    border: '1px solid #FECACA', 'border-radius': 'var(--r-md)',
+                    'font-size': '13px', 'font-weight': '500',
+                    cursor: resetting() ? 'not-allowed' : 'pointer',
+                    opacity: resetting() ? '0.6' : '1',
+                  }}>{resetting() ? 'Resetting…' : 'Reset'}</button>
               </div>
             </div>
           )}

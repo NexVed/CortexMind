@@ -1,4 +1,5 @@
-import { Component, For, createSignal, createResource, Show } from 'solid-js';
+import { Component, For, createSignal, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import {
   FolderKanban,
   Plus,
@@ -10,13 +11,60 @@ import {
   CheckCircle2,
   Scan,
 } from 'lucide-solid';
-import { listProjects, scanProject } from '../../api/client';
+import { useProjects, useCreateProject, useScanProject } from '../../api/queries';
+import { isEnabled } from '../../api/settings';
+import { Modal } from '../../components/Modal/Modal';
 import './Projects.css';
 
 export const ProjectsPage: Component = () => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = createSignal('');
-  const [projects, { mutate, refetch }] = createResource(() => listProjects());
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
+  const createM = useCreateProject();
+  const scanM = useScanProject();
   const [scanning, setScanning] = createSignal<Record<string, boolean>>({});
+
+  // ── Create project modal ──
+  const [showCreate, setShowCreate] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [formErr, setFormErr] = createSignal('');
+  const [fName, setFName] = createSignal('');
+  const [fDesc, setFDesc] = createSignal('');
+  const [fUrl, setFUrl] = createSignal('');
+
+  const openCreate = () => {
+    setFName('');
+    setFDesc('');
+    setFUrl('');
+    setFormErr('');
+    setShowCreate(true);
+  };
+
+  const submitCreate = async () => {
+    if (!fName().trim()) {
+      setFormErr('Project name is required.');
+      return;
+    }
+    setSaving(true);
+    setFormErr('');
+    try {
+      const created = await createM.mutateAsync({
+        name: fName().trim(),
+        description: fDesc().trim(),
+        github_url: fUrl().trim(),
+      });
+      setShowCreate(false);
+      // Respect the "Auto-scan on import" repository default.
+      if (created?.id && isEnabled('Auto-scan on import')) {
+        handleScan(created.id);
+      }
+    } catch (err: any) {
+      setFormErr(err?.message || 'Failed to create project');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const filteredProjects = () => {
     const p = projects();
@@ -33,8 +81,7 @@ export const ProjectsPage: Component = () => {
   const handleScan = async (projectId: string) => {
     setScanning((prev) => ({ ...prev, [projectId]: true }));
     try {
-      await scanProject(projectId);
-      refetch();
+      await scanM.mutateAsync(projectId);
     } catch (err) {
       console.error('Scan failed:', err);
     } finally {
@@ -55,7 +102,7 @@ export const ProjectsPage: Component = () => {
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn primary">
+          <button class="btn primary" onClick={openCreate}>
             <Plus size={16} />
             Add Project
           </button>
@@ -79,16 +126,16 @@ export const ProjectsPage: Component = () => {
         </div>
       </div>
 
-      <Show when={projects.loading}>
+      <Show when={projectsQuery.isLoading}>
         <div class="loading-state">Loading projects...</div>
       </Show>
 
-      <Show when={!projects.loading && filteredProjects().length === 0}>
+      <Show when={!projectsQuery.isLoading && filteredProjects().length === 0}>
         <div class="empty-state">
           <div class="empty-icon"><FolderKanban size={32} /></div>
           <h3>No projects found</h3>
           <p>Get started by adding your first project repository.</p>
-          <button class="btn primary mt-4">
+          <button class="btn primary mt-4" onClick={openCreate}>
             <Plus size={16} />
             Add Project
           </button>
@@ -153,7 +200,7 @@ export const ProjectsPage: Component = () => {
                     </Show>
                     {isScanning ? 'Scanning...' : 'Scan'}
                   </button>
-                  <button class="btn primary small">
+                  <button class="btn primary small" onClick={() => navigate(`/repository/${project.id}`)}>
                     <Play size={14} />
                     Open
                   </button>
@@ -166,6 +213,43 @@ export const ProjectsPage: Component = () => {
           }}
         </For>
       </div>
+
+      <Modal open={showCreate()} title="Add Project" onClose={() => setShowCreate(false)}>
+        <div class="cx-field">
+          <label>Name *</label>
+          <input
+            value={fName()}
+            onInput={(e) => setFName(e.currentTarget.value)}
+            placeholder="my-project"
+            autofocus
+          />
+        </div>
+        <div class="cx-field">
+          <label>Description</label>
+          <textarea
+            value={fDesc()}
+            onInput={(e) => setFDesc(e.currentTarget.value)}
+            placeholder="What is this project about?"
+          />
+        </div>
+        <div class="cx-field">
+          <label>GitHub URL</label>
+          <input
+            value={fUrl()}
+            onInput={(e) => setFUrl(e.currentTarget.value)}
+            placeholder="https://github.com/owner/repo"
+          />
+        </div>
+        <Show when={formErr()}>
+          <div class="cx-modal-error">{formErr()}</div>
+        </Show>
+        <div class="cx-modal-actions">
+          <button class="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+          <button class="btn primary" onClick={submitCreate} disabled={saving()}>
+            {saving() ? 'Creating…' : 'Create Project'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

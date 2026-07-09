@@ -1,4 +1,4 @@
-import { Component, For, createSignal, createResource, Show } from 'solid-js';
+import { Component, For, createSignal, Show } from 'solid-js';
 import {
   Archive,
   Plus,
@@ -11,7 +11,8 @@ import {
   Calendar,
   Share2,
 } from 'lucide-solid';
-import { listVaultEntries } from '../../api/client';
+import { useVaultEntries, useCreateVaultEntry } from '../../api/queries';
+import { Modal } from '../../components/Modal/Modal';
 import './Vaults.css';
 
 const categories = [
@@ -27,7 +28,46 @@ export const VaultsPage: Component = () => {
 
   // We re-fetch when activeCategory changes if we pass it as source,
   // but for simple filtering it's better to fetch all and filter client side.
-  const [entries] = createResource(() => listVaultEntries());
+  const entriesQuery = useVaultEntries();
+  const entries = () => entriesQuery.data;
+  const createEntryM = useCreateVaultEntry();
+
+  // ── Create entry modal ──
+  const [showCreate, setShowCreate] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [formErr, setFormErr] = createSignal('');
+  const [fTitle, setFTitle] = createSignal('');
+  const [fCategory, setFCategory] = createSignal('architecture');
+  const [fContent, setFContent] = createSignal('');
+
+  const openCreate = () => {
+    setFTitle('');
+    setFCategory(activeCategory() !== 'all' ? activeCategory() : 'architecture');
+    setFContent('');
+    setFormErr('');
+    setShowCreate(true);
+  };
+
+  const submitCreate = async () => {
+    if (!fTitle().trim()) {
+      setFormErr('Title is required.');
+      return;
+    }
+    setSaving(true);
+    setFormErr('');
+    try {
+      await createEntryM.mutateAsync({
+        title: fTitle().trim(),
+        category: fCategory(),
+        content: fContent().trim(),
+      });
+      setShowCreate(false);
+    } catch (err: any) {
+      setFormErr(err?.message || 'Failed to create entry');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const filteredEntries = () => {
     let result = entries() || [];
@@ -65,7 +105,7 @@ export const VaultsPage: Component = () => {
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn primary">
+          <button class="btn primary" onClick={openCreate}>
             <Plus size={16} />
             New Entry
           </button>
@@ -106,11 +146,11 @@ export const VaultsPage: Component = () => {
 
         {/* Main Grid */}
         <div class="vaults-content">
-          <Show when={entries.loading}>
+          <Show when={entriesQuery.isLoading}>
             <div class="loading-state">Loading vault entries...</div>
           </Show>
 
-          <Show when={!entries.loading && filteredEntries().length === 0}>
+          <Show when={!entriesQuery.isLoading && filteredEntries().length === 0}>
             <div class="empty-state">
               <div class="empty-icon"><Archive size={32} /></div>
               <h3>No entries found</h3>
@@ -141,14 +181,16 @@ export const VaultsPage: Component = () => {
                       {entry.content ? entry.content.replace(/<[^>]*>?/gm, '').substring(0, 120) + '...' : 'No content.'}
                     </p>
 
-                    <div class="vault-card-tags">
-                      <For each={entry.tags?.slice(0, 3) || []}>
-                        {(tag) => <span class="vault-tag">{tag}</span>}
-                      </For>
-                      <Show when={(entry.tags?.length || 0) > 3}>
-                        <span class="vault-tag">+{entry.tags!.length - 3}</span>
-                      </Show>
-                    </div>
+                    <Show when={entry.tags && entry.tags.length > 0}>
+                      <div class="vault-card-tags">
+                        <For each={entry.tags!.slice(0, 3)}>
+                          {(tag) => <span class="vault-tag">{tag}</span>}
+                        </For>
+                        <Show when={entry.tags!.length > 3}>
+                          <span class="vault-tag">+{entry.tags!.length - 3}</span>
+                        </Show>
+                      </div>
+                    </Show>
 
                     <div class="vault-card-footer">
                       <div class="vault-card-meta">
@@ -169,6 +211,45 @@ export const VaultsPage: Component = () => {
           </div>
         </div>
       </div>
+
+      <Modal open={showCreate()} title="New Vault Entry" onClose={() => setShowCreate(false)}>
+        <div class="cx-field">
+          <label>Title *</label>
+          <input
+            value={fTitle()}
+            onInput={(e) => setFTitle(e.currentTarget.value)}
+            placeholder="e.g. Auth flow decision"
+            autofocus
+          />
+        </div>
+        <div class="cx-field">
+          <label>Category</label>
+          <select value={fCategory()} onChange={(e) => setFCategory(e.currentTarget.value)}>
+            <option value="architecture">Architecture</option>
+            <option value="decision">Decision</option>
+            <option value="task">Task context</option>
+            <option value="roadmap">Roadmap</option>
+            <option value="memory">Memory</option>
+          </select>
+        </div>
+        <div class="cx-field">
+          <label>Content</label>
+          <textarea
+            value={fContent()}
+            onInput={(e) => setFContent(e.currentTarget.value)}
+            placeholder="Knowledge to persist across sessions…"
+          />
+        </div>
+        <Show when={formErr()}>
+          <div class="cx-modal-error">{formErr()}</div>
+        </Show>
+        <div class="cx-modal-actions">
+          <button class="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+          <button class="btn primary" onClick={submitCreate} disabled={saving()}>
+            {saving() ? 'Saving…' : 'Create Entry'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

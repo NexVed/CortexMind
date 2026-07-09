@@ -1,6 +1,6 @@
-import { Component, For, createResource, Show } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import { Plus } from 'lucide-solid';
-import { listProjects } from '../../api/client';
+import { useProjects } from '../../api/queries';
 import './ProjectList.css';
 
 function getProgressClass(value: number): string {
@@ -10,7 +10,8 @@ function getProgressClass(value: number): string {
 }
 
 export const ProjectList: Component = () => {
-  const [projects] = createResource(() => listProjects());
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
 
   const displayProjects = () => {
     const p = projects();
@@ -28,7 +29,7 @@ export const ProjectList: Component = () => {
         </button>
       </div>
       
-      <Show when={!projects.loading && displayProjects().length === 0}>
+      <Show when={!projectsQuery.isLoading && displayProjects().length === 0}>
         <div style={{ padding: '24px', "text-align": 'center', color: 'var(--text-muted)' }}>
           No projects yet. Click 'New Project' to get started.
         </div>

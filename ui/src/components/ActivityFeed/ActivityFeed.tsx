@@ -1,4 +1,4 @@
-import { Component, For, createResource, Show } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import {
   FileText,
   ArrowRightLeft,
@@ -7,7 +7,7 @@ import {
   BrainCircuit,
   Activity
 } from 'lucide-solid';
-import { listActivity } from '../../api/client';
+import { useActivity } from '../../api/queries';
 import './ActivityFeed.css';
 
 // Map actions to icons and colors
@@ -21,7 +21,8 @@ function getActivityIconInfo(action: string) {
 }
 
 export const ActivityFeed: Component = () => {
-  const [activities] = createResource(() => listActivity(5));
+  const activitiesQuery = useActivity(5);
+  const activities = () => activitiesQuery.data;
 
   const formatTimeAgo = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -42,7 +43,7 @@ export const ActivityFeed: Component = () => {
     <div class="activity-feed">
       <div class="activity-feed-header">Recent Activity</div>
       
-      <Show when={!activities.loading && activities()?.length === 0}>
+      <Show when={!activitiesQuery.isLoading && activities()?.length === 0}>
         <div style={{ padding: '16px', "text-align": 'center', color: 'var(--text-muted)' }}>
           No recent activity.
         </div>

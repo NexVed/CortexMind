@@ -19,19 +19,6 @@
   gap: var(--s3);
 }
 
-.page-title-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--r-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.page-title-icon.blue {
-  background: rgba(59, 130, 246, 0.1);
-  color: var(--blue);
-}
 
 .page-title {
   font-size: 24px;

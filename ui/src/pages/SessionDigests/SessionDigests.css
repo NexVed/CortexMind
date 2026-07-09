@@ -1,0 +1,297 @@
+/* ============================================================
+   Session Digests page
+   ============================================================ */
+
+.digests-page {
+  padding: var(--s6);
+  max-width: 960px;
+  margin: 0 auto;
+  animation: fadeIn var(--dur-enter) ease;
+}
+
+/* --- Header (shared page-header pattern) --- */
+.page-header {
+  margin-bottom: var(--s6);
+}
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+.page-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  max-width: 620px;
+}
+
+/* --- Toolbar --- */
+.digests-toolbar {
+  display: flex;
+  gap: var(--s3);
+  align-items: center;
+  margin-bottom: var(--s5);
+  flex-wrap: wrap;
+}
+.custom-select {
+  position: relative;
+  min-width: 240px;
+  flex: 1 1 240px;
+}
+.custom-select select {
+  width: 100%;
+  appearance: none;
+  padding: 10px 36px 10px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease;
+}
+.custom-select select:hover {
+  border-color: var(--border-strong);
+}
+.custom-select select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.custom-select .select-icon {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.generate-digest-btn {
+  flex-shrink: 0;
+}
+.generate-digest-btn .spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.digest-error {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  border: 1px solid var(--accent-bg);
+  padding: 10px 14px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  margin-bottom: var(--s4);
+}
+
+/* --- Empty / loading states --- */
+.digest-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s2);
+  padding: var(--s10) var(--s6);
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+}
+.digest-empty h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-top: var(--s2);
+}
+.digest-empty p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 460px;
+}
+.digest-empty code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-elevated);
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+}
+
+.digest-skeletons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+.digest-skeleton {
+  height: 200px;
+  border-radius: var(--r-lg);
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--border) 37%, var(--bg-elevated) 63%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+/* --- Digest cards --- */
+.digest-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+.digest-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--s5);
+  box-shadow: var(--shadow-card);
+  animation: fadeIn var(--dur-slow) ease;
+}
+.digest-card-head {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--s3);
+  margin-bottom: var(--s3);
+}
+.digest-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--s2);
+}
+.digest-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+.digest-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  text-transform: capitalize;
+}
+.digest-badge.ide {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+.digest-badge.provider {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--blue);
+}
+.digest-badge.provider.muted {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+.digest-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Rendered markdown note --- */
+.md-note {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+.md-h1 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: var(--s2) 0 var(--s2);
+}
+.md-h {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin: var(--s3) 0 var(--s1);
+}
+.md-p {
+  margin: var(--s1) 0;
+}
+.md-quote {
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding-left: var(--s3);
+  border-left: 2px solid var(--border-strong);
+  margin: var(--s1) 0 var(--s2);
+}
+.md-li {
+  position: relative;
+  padding-left: var(--s4);
+  margin: 3px 0;
+}
+.md-li::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+}
+.md-tags {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: var(--s3);
+}
+.md-gap {
+  height: var(--s2);
+}
+
+/* --- Compact JSON block --- */
+.compact-json {
+  margin-top: var(--s4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+.compact-json-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.compact-json-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.compact-json-body {
+  margin: 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .digests-page {
+    padding: var(--s4);
+  }
+  .digests-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

@@ -1,4 +1,4 @@
-import { Component, For, createSignal, createResource, Show } from 'solid-js';
+import { Component, For, createSignal, Show } from 'solid-js';
 import {
   ListTodo,
   Plus,
@@ -11,16 +11,56 @@ import {
   Calendar,
   User,
 } from 'lucide-solid';
-import { listTasks, updateTask, Task } from '../../api/client';
+import { useTasks, useCreateTask, useUpdateTask } from '../../api/queries';
+import { Modal } from '../../components/Modal/Modal';
 import './Tasks.css';
 
 export const TasksPage: Component = () => {
   const [searchQuery, setSearchQuery] = createSignal('');
   const [activeFilter, setActiveFilter] = createSignal('all');
-  const [serverTasks, { mutate }] = createResource(() => listTasks());
+  const tasksQuery = useTasks();
+  const createTaskM = useCreateTask();
+  const updateTaskM = useUpdateTask();
 
-  // Derive local state for optimistic updates
-  const tasks = () => serverTasks() || [];
+  // ── Create task modal ──
+  const [showCreate, setShowCreate] = createSignal(false);
+  const [saving, setSaving] = createSignal(false);
+  const [formErr, setFormErr] = createSignal('');
+  const [fTitle, setFTitle] = createSignal('');
+  const [fDesc, setFDesc] = createSignal('');
+  const [fPriority, setFPriority] = createSignal('medium');
+
+  const openCreate = () => {
+    setFTitle('');
+    setFDesc('');
+    setFPriority('medium');
+    setFormErr('');
+    setShowCreate(true);
+  };
+
+  const submitCreate = async () => {
+    if (!fTitle().trim()) {
+      setFormErr('Task title is required.');
+      return;
+    }
+    setSaving(true);
+    setFormErr('');
+    try {
+      await createTaskM.mutateAsync({
+        title: fTitle().trim(),
+        description: fDesc().trim(),
+        priority: fPriority(),
+      });
+      setShowCreate(false);
+    } catch (err: any) {
+      setFormErr(err?.message || 'Failed to create task');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Derive local state
+  const tasks = () => tasksQuery.data ?? [];
 
   const filteredTasks = () => {
     let result = tasks();
@@ -44,16 +84,10 @@ export const TasksPage: Component = () => {
 
   const toggleTaskStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'done' ? 'todo' : 'done';
-    
-    // Optimistic update
-    mutate(prev => prev?.map(t => t.id === id ? { ...t, status: newStatus } : t) || []);
-    
     try {
-      await updateTask(id, { status: newStatus });
+      await updateTaskM.mutateAsync({ id, data: { status: newStatus } });
     } catch (err) {
       console.error('Failed to update task:', err);
-      // Revert on failure
-      mutate(prev => prev?.map(t => t.id === id ? { ...t, status: currentStatus } : t) || []);
     }
   };
 
@@ -70,7 +104,7 @@ export const TasksPage: Component = () => {
           </div>
         </div>
         <div class="page-actions">
-          <button class="btn primary">
+          <button class="btn primary" onClick={openCreate}>
             <Plus size={16} />
             New Task
           </button>
@@ -118,11 +152,11 @@ export const TasksPage: Component = () => {
         </div>
       </div>
 
-      <Show when={serverTasks.loading}>
+      <Show when={tasksQuery.isLoading}>
         <div class="loading-state">Loading tasks...</div>
       </Show>
 
-      <Show when={!serverTasks.loading && filteredTasks().length === 0}>
+      <Show when={!tasksQuery.isLoading && filteredTasks().length === 0}>
         <div class="empty-state">
           <div class="empty-icon"><ListTodo size={32} /></div>
           <h3>No tasks found</h3>
@@ -187,6 +221,43 @@ export const TasksPage: Component = () => {
           }}
         </For>
       </div>
+
+      <Modal open={showCreate()} title="New Task" onClose={() => setShowCreate(false)}>
+        <div class="cx-field">
+          <label>Title *</label>
+          <input
+            value={fTitle()}
+            onInput={(e) => setFTitle(e.currentTarget.value)}
+            placeholder="What needs to be done?"
+            autofocus
+          />
+        </div>
+        <div class="cx-field">
+          <label>Description</label>
+          <textarea
+            value={fDesc()}
+            onInput={(e) => setFDesc(e.currentTarget.value)}
+            placeholder="Optional details"
+          />
+        </div>
+        <div class="cx-field">
+          <label>Priority</label>
+          <select value={fPriority()} onChange={(e) => setFPriority(e.currentTarget.value)}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+        <Show when={formErr()}>
+          <div class="cx-modal-error">{formErr()}</div>
+        </Show>
+        <div class="cx-modal-actions">
+          <button class="btn secondary" onClick={() => setShowCreate(false)}>Cancel</button>
+          <button class="btn primary" onClick={submitCreate} disabled={saving()}>
+            {saving() ? 'Creating…' : 'Create Task'}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 };

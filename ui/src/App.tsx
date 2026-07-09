@@ -1,7 +1,11 @@
 import { Component, Show } from 'solid-js';
 import { Route, Router, useNavigate } from '@solidjs/router';
+import { QueryClientProvider } from '@tanstack/solid-query';
+import { queryClient } from './api/queryClient';
 import { AuthProvider, useAuth } from './api/auth';
 import { AppLayout } from './layouts/AppLayout';
+import { GlobalShortcuts } from './components/GlobalShortcuts';
+import { initSettings } from './api/settings';
 import { LoginPage } from './pages/Login/Login';
 import { DashboardMain } from './pages/Dashboard/Dashboard';
 import { ProjectsPage } from './pages/Projects/Projects';
@@ -9,10 +13,13 @@ import { VaultsPage } from './pages/Vaults/Vaults';
 import { TasksPage } from './pages/Tasks/Tasks';
 import { HandoffsPage } from './pages/Handoffs/Handoffs';
 import { SearchPage } from './pages/Search/Search';
-import { GraphPage } from './pages/Graph/Graph';
 import { AIContextPage } from './pages/AIContext/AIContext';
 import { MCPServerPage } from './pages/MCPServer/MCPServer';
+import { SessionDigestsPage } from './pages/SessionDigests/SessionDigests';
+import { CodeGraphPage } from './pages/CodeGraph/CodeGraph';
+import { AgentMemoryPage } from './pages/AgentMemory/AgentMemory';
 import { SettingsPage } from './pages/Settings/Settings';
+import { RepositoryPage } from './pages/Repository/Repository';
 
 // ── Route Guard ────────────────────────────────────────
 
@@ -88,22 +95,39 @@ const FullWidthPage: Component<{ children: any }> = (props) => (
 
 // ── App ────────────────────────────────────────────────
 
+// RootShell wraps every route: it applies persisted UI preferences and mounts
+// the global keyboard shortcut handler (which needs Router context).
+const RootShell: Component<{ children?: any }> = (props) => {
+  initSettings();
+  return (
+    <>
+      <GlobalShortcuts />
+      {props.children}
+    </>
+  );
+};
+
 const App: Component = () => {
   return (
-    <AuthProvider>
-      <Router>
-        <Route path="/login" component={LoginPage} />
-        <Route path="/" component={DashboardPage} />
-        <Route path="/projects" component={() => <FullWidthPage><ProjectsPage /></FullWidthPage>} />
-        <Route path="/vaults" component={() => <FullWidthPage><VaultsPage /></FullWidthPage>} />
-        <Route path="/tasks" component={() => <FullWidthPage><TasksPage /></FullWidthPage>} />
-        <Route path="/handoffs" component={() => <FullWidthPage><HandoffsPage /></FullWidthPage>} />
-        <Route path="/graph" component={() => <FullWidthPage><GraphPage /></FullWidthPage>} />
-        <Route path="/ai-context" component={() => <FullWidthPage><AIContextPage /></FullWidthPage>} />
-        <Route path="/mcp-server" component={() => <FullWidthPage><MCPServerPage /></FullWidthPage>} />
-        <Route path="/settings" component={() => <FullWidthPage><SettingsPage /></FullWidthPage>} />
-      </Router>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router root={RootShell}>
+          <Route path="/login" component={LoginPage} />
+          <Route path="/" component={DashboardPage} />
+          <Route path="/projects" component={() => <FullWidthPage><ProjectsPage /></FullWidthPage>} />
+          <Route path="/vaults" component={() => <FullWidthPage><VaultsPage /></FullWidthPage>} />
+          <Route path="/tasks" component={() => <FullWidthPage><TasksPage /></FullWidthPage>} />
+          <Route path="/handoffs" component={() => <FullWidthPage><HandoffsPage /></FullWidthPage>} />
+          <Route path="/ai-context" component={() => <FullWidthPage><AIContextPage /></FullWidthPage>} />
+          <Route path="/digests" component={() => <FullWidthPage><SessionDigestsPage /></FullWidthPage>} />
+          <Route path="/code-graph" component={() => <FullWidthPage><CodeGraphPage /></FullWidthPage>} />
+          <Route path="/agent-memory" component={() => <FullWidthPage><AgentMemoryPage /></FullWidthPage>} />
+          <Route path="/mcp-server" component={() => <FullWidthPage><MCPServerPage /></FullWidthPage>} />
+          <Route path="/settings" component={() => <FullWidthPage><SettingsPage /></FullWidthPage>} />
+          <Route path="/repository/:id" component={() => <FullWidthPage><RepositoryPage /></FullWidthPage>} />
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 };
 

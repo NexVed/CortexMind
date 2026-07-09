@@ -19,6 +19,8 @@ const (
 	CollActivityLog   = "activity_log"
 	CollMCPTokens     = "mcp_tokens"
 	CollAgentMemories = "agent_memories"
+	CollSessionDigests = "session_digests"
+	CollCodeGraphs    = "code_graphs"
 )
 
 // EnsureCollections creates every CORTEX collection if it does not already
@@ -54,6 +56,8 @@ func EnsureCollections(app core.App) error {
 		ensureActivityLog,
 		ensureMCPTokens,
 		ensureAgentMemories,
+		ensureSessionDigests,
+		ensureCodeGraphs,
 	}
 	for _, b := range builders {
 		if err := b(app, usersID, projectsID); err != nil {
@@ -360,5 +364,50 @@ func ensureAgentMemories(app core.App, usersID, projectsID string) error {
 	timestamps(c)
 	c.AddIndex("idx_agentmem_project", false, "project", "")
 	c.AddIndex("idx_agentmem_session", false, "session_id", "")
+	return app.Save(c)
+}
+
+// ensureSessionDigests stores compressed summaries of an AI agent's work in a
+// single session: a human-readable Obsidian/Notion-style markdown note plus a
+// compact, token-efficient JSON form intended for fast agent-to-agent transfer.
+func ensureSessionDigests(app core.App, usersID, projectsID string) error {
+	c := newBase(app, CollSessionDigests)
+	if c == nil {
+		return nil
+	}
+	c.Fields.Add(projectRelation(projectsID))
+	c.Fields.Add(ownerRelation(usersID))
+	c.Fields.Add(&core.TextField{Name: "session_id"})
+	c.Fields.Add(&core.TextField{Name: "ide"})
+	c.Fields.Add(&core.TextField{Name: "client_name"})
+	c.Fields.Add(&core.TextField{Name: "title", Max: 300})
+	c.Fields.Add(&core.EditorField{Name: "summary_md"})            // readable markdown note
+	c.Fields.Add(&core.JSONField{Name: "digest_json", MaxSize: 500000}) // compact agent-to-agent form
+	c.Fields.Add(&core.NumberField{Name: "token_count"})
+	c.Fields.Add(&core.NumberField{Name: "memory_count"})
+	c.Fields.Add(&core.TextField{Name: "provider"}) // mistral | ollama | heuristic
+	timestamps(c)
+	c.AddIndex("idx_digest_project", false, "project", "")
+	c.AddIndex("idx_digest_session", false, "session_id", "")
+	return app.Save(c)
+}
+
+// ensureCodeGraphs stores the persistent codebase memory graph for a project:
+// a graph of directories, files, symbols and packages with their relationships.
+// One record per project (rebuilt on demand). Project-scoped read; daemon writes.
+func ensureCodeGraphs(app core.App, usersID, projectsID string) error {
+	c := newProjectScoped(app, CollCodeGraphs)
+	if c == nil {
+		return nil
+	}
+	c.Fields.Add(projectRelation(projectsID))
+	c.Fields.Add(&core.JSONField{Name: "nodes", MaxSize: 20000000})
+	c.Fields.Add(&core.JSONField{Name: "edges", MaxSize: 20000000})
+	c.Fields.Add(&core.JSONField{Name: "stats", MaxSize: 100000})
+	c.Fields.Add(&core.NumberField{Name: "node_count"})
+	c.Fields.Add(&core.NumberField{Name: "edge_count"})
+	c.Fields.Add(&core.DateField{Name: "generated_at"})
+	timestamps(c)
+	c.AddIndex("idx_codegraph_project", true, "project", "")
 	return app.Save(c)
 }

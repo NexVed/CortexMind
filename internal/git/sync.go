@@ -140,6 +140,29 @@ func (s *SyncEngine) CommitChanges(repoPath, message string) error {
 	return nil
 }
 
+// PushRemote pushes the current branch to origin using the provided GitHub
+// token for authentication. An empty token only works for public repos with an
+// already-configured credential helper. NoErrAlreadyUpToDate is treated as
+// success (nothing to push).
+func (s *SyncEngine) PushRemote(repoPath, token string) error {
+	repo, err := git.PlainOpen(repoPath)
+	if err != nil {
+		return fmt.Errorf("open repo: %w", err)
+	}
+	err = repo.Push(&git.PushOptions{
+		RemoteName: "origin",
+		Auth:       authMethod(token),
+	})
+	if err == git.NoErrAlreadyUpToDate {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("git push: %w", err)
+	}
+	log.Info().Str("repo", repoPath).Msg("pushed .cortex changes to origin")
+	return nil
+}
+
 // PullRemote fetches and fast-forwards the current branch.
 func (s *SyncEngine) PullRemote(repoPath string) error {
 	repo, err := git.PlainOpen(repoPath)

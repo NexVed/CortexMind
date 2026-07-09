@@ -1,11 +1,13 @@
 package memory
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	cgit "github.com/NexVed/Cortex/internal/git"
 	"github.com/pocketbase/pocketbase/core"
@@ -58,4 +60,188 @@ func ExportEntryToFile(entry *core.Record, repoPath string) (string, error) {
 
 	rel := filepath.ToSlash(filepath.Join(".cortex", sub, filename))
 	return rel, nil
+}
+
+
+// ── Portable memory bundle (.cortex/memory.json + README.md) ───────────────
+//
+// A Bundle is the complete, shareable snapshot of a project's agentic memory.
+// It is written to the repo's .cortex/ directory as both a machine-readable
+// JSON file (memory.json) and a human-readable index (README.md) so it can be
+// committed and pushed for teammates to consume.
+
+const BundleSchemaVersion = "1.0"
+
+// ProjectMeta is the lightweight project description carried in a bundle.
+type ProjectMeta struct {
+	Name         string   `json:"name"`
+	Description  string   `json:"description,omitempty"`
+	GitHubURL    string   `json:"github_url,omitempty"`
+	Technologies []string `json:"technologies,omitempty"`
+}
+
+// BundleEntry is a single vault entry (architecture, decision, roadmap, …).
+type BundleEntry struct {
+	Category    string   `json:"category"`
+	Title       string   `json:"title"`
+	Content     string   `json:"content"`
+	Tags        []string `json:"tags,omitempty"`
+	SourceAgent string   `json:"source_agent,omitempty"`
+	Version     int      `json:"version,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
+}
+
+// AgentMemory is what an AI agent learned/did in an IDE session.
+type AgentMemory struct {
+	IDE       string   `json:"ide,omitempty"`
+	Client    string   `json:"client_name,omitempty"`
+	SessionID string   `json:"session_id,omitempty"`
+	Category  string   `json:"category"`
+	Title     string   `json:"title"`
+	Content   string   `json:"content"`
+	Tags      []string `json:"tags,omitempty"`
+	UpdatedAt string   `json:"updated_at,omitempty"`
+}
+
+// SessionDigest is a compressed summary of a single agent session.
+type SessionDigest struct {
+	SessionID   string `json:"session_id,omitempty"`
+	IDE         string `json:"ide,omitempty"`
+	Title       string `json:"title"`
+	SummaryMD   string `json:"summary_md,omitempty"`
+	TokenCount  int    `json:"token_count,omitempty"`
+	MemoryCount int    `json:"memory_count,omitempty"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+}
+
+// Bundle is the full portable memory snapshot for a project.
+type Bundle struct {
+	SchemaVersion  string          `json:"schema_version"`
+	GeneratedAt    string          `json:"generated_at"`
+	Generator      string          `json:"generator"`
+	Project        ProjectMeta     `json:"project"`
+	VaultEntries   []BundleEntry   `json:"vault_entries"`
+	AgentMemories  []AgentMemory   `json:"agent_memories"`
+	SessionDigests []SessionDigest `json:"session_digests"`
+}
+
+// ExportBundle writes a Bundle to the repo's .cortex/ directory as both
+// memory.json and README.md and returns the relative paths written. It also
+// re-exports each shared vault entry as an individual markdown file under its
+// category subdirectory so existing per-entry consumers keep working.
+func ExportBundle(bundle Bundle, repoPath string) ([]string, error) {
+	if bundle.SchemaVersion == "" {
+		bundle.SchemaVersion = BundleSchemaVersion
+	}
+	if bundle.GeneratedAt == "" {
+		bundle.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if bundle.Generator == "" {
+		bundle.Generator = "cortex"
+	}
+
+	base := cgit.CortexDir(repoPath)
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return nil, err
+	}
+
+	written := []string{}
+
+	// 1. Machine-readable JSON.
+	data, err := json.MarshalIndent(bundle, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal bundle: %w", err)
+	}
+	jsonPath := filepath.Join(base, "memory.json")
+	if err := os.WriteFile(jsonPath, data, 0o644); err != nil {
+		return nil, err
+	}
+	written = append(written, filepath.ToSlash(filepath.Join(".cortex", "memory.json")))
+
+	// 2. Human-readable README.
+	readmePath := filepath.Join(base, "README.md")
+	if err := os.WriteFile(readmePath, []byte(renderBundleReadme(bundle)), 0o644); err != nil {
+		return nil, err
+	}
+	written = append(written, filepath.ToSlash(filepath.Join(".cortex", "README.md")))
+
+	return written, nil
+}
+
+func renderBundleReadme(b Bundle) string {
+	var w strings.Builder
+	fmt.Fprintf(&w, "# %s — CORTEX Memory\n\n", b.Project.Name)
+	w.WriteString("> Portable agentic memory exported by CORTEX. This directory travels with the\n")
+	w.WriteString("> repository so teammates and their AI agents share the same context.\n\n")
+
+	if b.Project.Description != "" {
+		w.WriteString(b.Project.Description + "\n\n")
+	}
+	w.WriteString("| Field | Value |\n|---|---|\n")
+	fmt.Fprintf(&w, "| Generated | %s |\n", b.GeneratedAt)
+	fmt.Fprintf(&w, "| Schema | v%s |\n", b.SchemaVersion)
+	if b.Project.GitHubURL != "" {
+		fmt.Fprintf(&w, "| Repository | %s |\n", b.Project.GitHubURL)
+	}
+	if len(b.Project.Technologies) > 0 {
+		fmt.Fprintf(&w, "| Tech | %s |\n", strings.Join(b.Project.Technologies, ", "))
+	}
+	fmt.Fprintf(&w, "| Vault entries | %d |\n", len(b.VaultEntries))
+	fmt.Fprintf(&w, "| Agent memories | %d |\n", len(b.AgentMemories))
+	fmt.Fprintf(&w, "| Session digests | %d |\n\n", len(b.SessionDigests))
+
+	w.WriteString("Machine-readable form: [`memory.json`](./memory.json)\n\n")
+
+	if len(b.VaultEntries) > 0 {
+		w.WriteString("## Knowledge Vault\n\n")
+		for _, e := range b.VaultEntries {
+			fmt.Fprintf(&w, "### [%s] %s\n\n", e.Category, e.Title)
+			if e.SourceAgent != "" {
+				fmt.Fprintf(&w, "*by %s", e.SourceAgent)
+				if e.Version > 0 {
+					fmt.Fprintf(&w, " · v%d", e.Version)
+				}
+				w.WriteString("*\n\n")
+			}
+			w.WriteString(strings.TrimSpace(e.Content) + "\n\n")
+		}
+	}
+
+	if len(b.AgentMemories) > 0 {
+		w.WriteString("## Agent Memories\n\n")
+		for _, m := range b.AgentMemories {
+			title := m.Title
+			if title == "" {
+				title = "(untitled)"
+			}
+			fmt.Fprintf(&w, "### [%s] %s\n\n", m.Category, title)
+			meta := []string{}
+			if m.IDE != "" {
+				meta = append(meta, m.IDE)
+			}
+			if m.SessionID != "" {
+				meta = append(meta, "session "+m.SessionID)
+			}
+			if len(meta) > 0 {
+				fmt.Fprintf(&w, "*%s*\n\n", strings.Join(meta, " · "))
+			}
+			w.WriteString(strings.TrimSpace(m.Content) + "\n\n")
+		}
+	}
+
+	if len(b.SessionDigests) > 0 {
+		w.WriteString("## Session Digests\n\n")
+		for _, d := range b.SessionDigests {
+			title := d.Title
+			if title == "" {
+				title = "(untitled session)"
+			}
+			fmt.Fprintf(&w, "### %s\n\n", title)
+			if d.SummaryMD != "" {
+				w.WriteString(strings.TrimSpace(d.SummaryMD) + "\n\n")
+			}
+		}
+	}
+
+	return w.String()
 }
