@@ -95,6 +95,16 @@ func ensureUserFields(app core.App) error {
 	add(&core.TextField{Name: "display_name"})
 	add(&core.JSONField{Name: "preferences", MaxSize: 2000000})
 
+	// Allow local (email/password) sign-up so users without GitHub can use the
+	// tool. This is a local-first, single-user desktop app bound to loopback, so
+	// public record creation on the users collection is acceptable here.
+	// ponytail: for a multi-user/remote deployment, gate this behind an invite
+	// or superuser-only creation rule instead.
+	if coll.CreateRule == nil || *coll.CreateRule != "" {
+		coll.CreateRule = types.Pointer("")
+		changed = true
+	}
+
 	if !changed {
 		return nil
 	}

@@ -11,8 +11,11 @@ import {
   Calendar,
   Share2,
 } from 'lucide-solid';
-import { useVaultEntries, useCreateVaultEntry } from '../../api/queries';
+import { useProjects, useVaultEntries, useCreateVaultEntry } from '../../api/queries';
 import { Modal } from '../../components/Modal/Modal';
+import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
+import { createPersistedSignal } from '../../api/persistedState';
 import './Vaults.css';
 
 const categories = [
@@ -23,12 +26,17 @@ const categories = [
 ];
 
 export const VaultsPage: Component = () => {
-  const [activeCategory, setActiveCategory] = createSignal('all');
-  const [searchQuery, setSearchQuery] = createSignal('');
+  const [activeCategory, setActiveCategory] = createPersistedSignal('vaults.active-category', 'all');
+  const [searchQuery, setSearchQuery] = createPersistedSignal('vaults.search', '');
 
-  // We re-fetch when activeCategory changes if we pass it as source,
-  // but for simple filtering it's better to fetch all and filter client side.
-  const entriesQuery = useVaultEntries();
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(undefined, projects);
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
+
+  // Keep the vault scoped to the shared project selection.
+  const entriesQuery = useVaultEntries(() => ({ projectId: selectedProject() }));
   const entries = () => entriesQuery.data;
   const createEntryM = useCreateVaultEntry();
 
@@ -60,6 +68,7 @@ export const VaultsPage: Component = () => {
         title: fTitle().trim(),
         category: fCategory(),
         content: fContent().trim(),
+        project: selectedProject(),
       });
       setShowCreate(false);
     } catch (err: any) {
@@ -115,6 +124,12 @@ export const VaultsPage: Component = () => {
       <div class="vaults-layout">
         {/* Sidebar filters */}
         <aside class="vaults-sidebar">
+          <ProjectSelect
+            projects={projects() || []}
+            selectedId={selectedProject()}
+            onChange={setSelectedProject}
+            placeholder="Choose a project…"
+          />
           <div class="search-box">
             <Search size={16} class="search-icon" />
             <input

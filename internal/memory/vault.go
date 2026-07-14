@@ -62,7 +62,6 @@ func ExportEntryToFile(entry *core.Record, repoPath string) (string, error) {
 	return rel, nil
 }
 
-
 // ── Portable memory bundle (.cortex/memory.json + README.md) ───────────────
 //
 // A Bundle is the complete, shareable snapshot of a project's agentic memory.
@@ -70,7 +69,7 @@ func ExportEntryToFile(entry *core.Record, repoPath string) (string, error) {
 // JSON file (memory.json) and a human-readable index (README.md) so it can be
 // committed and pushed for teammates to consume.
 
-const BundleSchemaVersion = "1.0"
+const BundleSchemaVersion = "1.1"
 
 // ProjectMeta is the lightweight project description carried in a bundle.
 type ProjectMeta struct {
@@ -119,16 +118,16 @@ type Bundle struct {
 	SchemaVersion  string          `json:"schema_version"`
 	GeneratedAt    string          `json:"generated_at"`
 	Generator      string          `json:"generator"`
+	ExportMode     string          `json:"export_mode,omitempty"`
 	Project        ProjectMeta     `json:"project"`
-	VaultEntries   []BundleEntry   `json:"vault_entries"`
-	AgentMemories  []AgentMemory   `json:"agent_memories"`
-	SessionDigests []SessionDigest `json:"session_digests"`
+	VaultEntries   []BundleEntry   `json:"vault_entries,omitempty"`
+	AgentMemories  []AgentMemory   `json:"agent_memories,omitempty"`
+	SessionDigests []SessionDigest `json:"session_digests,omitempty"`
 }
 
-// ExportBundle writes a Bundle to the repo's .cortex/ directory as both
-// memory.json and README.md and returns the relative paths written. It also
-// re-exports each shared vault entry as an individual markdown file under its
-// category subdirectory so existing per-entry consumers keep working.
+// ExportBundle writes a Bundle to the repo's .cortex/ directory as memory.json
+// and a metadata-only README.md. Keeping one canonical content file avoids
+// doubling repository size and reduces noisy Git diffs.
 func ExportBundle(bundle Bundle, repoPath string) ([]string, error) {
 	if bundle.SchemaVersion == "" {
 		bundle.SchemaVersion = BundleSchemaVersion
@@ -138,6 +137,9 @@ func ExportBundle(bundle Bundle, repoPath string) ([]string, error) {
 	}
 	if bundle.Generator == "" {
 		bundle.Generator = "cortex"
+	}
+	if bundle.ExportMode == "" {
+		bundle.ExportMode = "compact"
 	}
 
 	base := cgit.CortexDir(repoPath)
@@ -180,6 +182,7 @@ func renderBundleReadme(b Bundle) string {
 	w.WriteString("| Field | Value |\n|---|---|\n")
 	fmt.Fprintf(&w, "| Generated | %s |\n", b.GeneratedAt)
 	fmt.Fprintf(&w, "| Schema | v%s |\n", b.SchemaVersion)
+	fmt.Fprintf(&w, "| Export mode | %s |\n", b.ExportMode)
 	if b.Project.GitHubURL != "" {
 		fmt.Fprintf(&w, "| Repository | %s |\n", b.Project.GitHubURL)
 	}
@@ -191,30 +194,34 @@ func renderBundleReadme(b Bundle) string {
 	fmt.Fprintf(&w, "| Session digests | %d |\n\n", len(b.SessionDigests))
 
 	w.WriteString("Machine-readable form: [`memory.json`](./memory.json)\n\n")
+	w.WriteString("The JSON file is canonical. This README contains metadata only so memory content is not duplicated.\n\n")
+	if b.ExportMode != "full" {
+		w.WriteString("Raw agent memories are kept in local storage; use the full export option only when an archive is required.\n\n")
+	}
 
 	if len(b.VaultEntries) > 0 {
 		w.WriteString("## Knowledge Vault\n\n")
 		for _, e := range b.VaultEntries {
-			fmt.Fprintf(&w, "### [%s] %s\n\n", e.Category, e.Title)
-			if e.SourceAgent != "" {
-				fmt.Fprintf(&w, "*by %s", e.SourceAgent)
-				if e.Version > 0 {
-					fmt.Fprintf(&w, " · v%d", e.Version)
-				}
-				w.WriteString("*\n\n")
+			meta := []string{e.Category}
+			if e.Version > 0 {
+				meta = append(meta, fmt.Sprintf("v%d", e.Version))
 			}
-			w.WriteString(strings.TrimSpace(e.Content) + "\n\n")
+			if e.UpdatedAt != "" {
+				meta = append(meta, e.UpdatedAt)
+			}
+			fmt.Fprintf(&w, "- [%s] %s\n", strings.Join(meta, " · "), e.Title)
 		}
+		w.WriteString("\n")
 	}
 
 	if len(b.AgentMemories) > 0 {
-		w.WriteString("## Agent Memories\n\n")
+		w.WriteString("## Raw Agent Memories\n\n")
+		w.WriteString("This was a full export. Complete content is stored only in `memory.json`.\n\n")
 		for _, m := range b.AgentMemories {
 			title := m.Title
 			if title == "" {
 				title = "(untitled)"
 			}
-			fmt.Fprintf(&w, "### [%s] %s\n\n", m.Category, title)
 			meta := []string{}
 			if m.IDE != "" {
 				meta = append(meta, m.IDE)
@@ -223,10 +230,12 @@ func renderBundleReadme(b Bundle) string {
 				meta = append(meta, "session "+m.SessionID)
 			}
 			if len(meta) > 0 {
-				fmt.Fprintf(&w, "*%s*\n\n", strings.Join(meta, " · "))
+				fmt.Fprintf(&w, "- [%s] %s (%s)\n", m.Category, title, strings.Join(meta, " · "))
+			} else {
+				fmt.Fprintf(&w, "- [%s] %s\n", m.Category, title)
 			}
-			w.WriteString(strings.TrimSpace(m.Content) + "\n\n")
 		}
+		w.WriteString("\n")
 	}
 
 	if len(b.SessionDigests) > 0 {
@@ -236,11 +245,9 @@ func renderBundleReadme(b Bundle) string {
 			if title == "" {
 				title = "(untitled session)"
 			}
-			fmt.Fprintf(&w, "### %s\n\n", title)
-			if d.SummaryMD != "" {
-				w.WriteString(strings.TrimSpace(d.SummaryMD) + "\n\n")
-			}
+			fmt.Fprintf(&w, "- %s (%d memories, ~%d tokens)\n", title, d.MemoryCount, d.TokenCount)
 		}
+		w.WriteString("\n")
 	}
 
 	return w.String()

@@ -18,13 +18,15 @@ import {
 import { useProjects, useCodeGraph, useBuildCodeGraph } from '../../api/queries';
 import { ForceGraph, type FGNode, type FGEdge } from '../../components/ForceGraph/ForceGraph';
 import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
+import { createPersistedSignal } from '../../api/persistedState';
 import './CodeGraph.css';
 
 const TYPE_COLORS: Record<string, string> = {
-  dir: '#64748B',
-  file: '#3B82F6',
-  function: '#22C55E',
-  class: '#A855F7',
+  dir: '#718096',
+  file: '#6C63FF',
+  function: '#3DCB6C',
+  class: '#E8326E',
   package: '#F59E0B',
 };
 
@@ -37,15 +39,18 @@ const legend = [
 ];
 
 export const CodeGraphPage: Component = () => {
-  const [selectedProject, setSelectedProject] = createSignal('');
   const [error, setError] = createSignal('');
-  const [showPackages, setShowPackages] = createSignal(true);
-  const [showSymbols, setShowSymbols] = createSignal(false);
-  const [search, setSearch] = createSignal('');
+  const [showPackages, setShowPackages] = createPersistedSignal('code-graph.show-packages', false);
+  const [showSymbols, setShowSymbols] = createPersistedSignal('code-graph.show-symbols', false);
+  const MAX_VISIBLE_NODES = 220;
+  const [search, setSearch] = createPersistedSignal('code-graph.search', '');
   const [selectedNode, setSelectedNode] = createSignal<CodeGraphNode | null>(null);
 
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(undefined, projects);
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
   const graphQuery = useCodeGraph(selectedProject);
   const graph = () => graphQuery.data;
   const buildM = useBuildCodeGraph();
@@ -77,18 +82,28 @@ export const CodeGraphPage: Component = () => {
   }
 
   // ── Reactive graph data for the shared ForceGraph ──
-  const includedIds = createMemo(() => {
+  const visibleNodes = createMemo<CodeGraphNode[]>(() => {
     const g = graph();
-    if (!g || !g.built) return new Set<string>();
+    if (!g || !g.built) return [];
     const types = visibleTypes(showPackages(), showSymbols());
-    return new Set(g.nodes.filter((n) => types.has(n.type)).map((n) => n.id));
+    const candidates = g.nodes.filter((n) => types.has(n.type));
+    if (candidates.length <= MAX_VISIBLE_NODES) return candidates;
+
+    // Keep directories as landmarks, then show the most connected entities.
+    const anchors = candidates.filter((n) => n.type === 'dir');
+    const ranked = candidates
+      .filter((n) => n.type !== 'dir')
+      .sort((a, b) => b.degree - a.degree || a.id.localeCompare(b.id));
+    return [...anchors, ...ranked].slice(0, MAX_VISIBLE_NODES);
   });
+
+  const includedIds = createMemo(() => new Set(visibleNodes().map((n) => n.id)));
 
   const fgNodes = createMemo<FGNode[]>(() => {
     const g = graph();
     if (!g || !g.built) return [];
     const ids = includedIds();
-    return g.nodes
+    return visibleNodes()
       .filter((n) => ids.has(n.id))
       .map((n) => ({
         id: n.id,
@@ -188,6 +203,9 @@ export const CodeGraphPage: Component = () => {
               />
             </div>
 
+            <div class="cg-density-note">
+              {graph()?.built ? 'Showing ' + visibleNodes().length + ' of ' + graph()!.nodes.length + ' nodes' : 'Overview mode'}
+            </div>
             <div class="cg-toggle-group">
               <label class={`cg-toggle ${showPackages() ? 'on' : ''}`}>
                 <input type="checkbox" checked={showPackages()} onChange={(e) => setShowPackages(e.currentTarget.checked)} />
@@ -214,6 +232,8 @@ export const CodeGraphPage: Component = () => {
               <div class="cg-stat" role="listitem"><Package size={14} /> {stats()!.packages} packages</div>
               <div class="cg-stat accent" role="listitem">{stats()!.internal_deps} internal deps</div>
               <div class="cg-stat" role="listitem">{stats()!.external_deps} external deps</div>
+              <div class="cg-stat" role="listitem">{stats()!.cycles} cycles</div>
+              <div class="cg-stat" role="listitem">{stats()!.orphans} orphans</div>
             </div>
           </Show>
         </aside>

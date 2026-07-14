@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	cgit "github.com/NexVed/Cortex/internal/git"
 	"github.com/NexVed/Cortex/internal/db"
+	cgit "github.com/NexVed/Cortex/internal/git"
 	"github.com/NexVed/Cortex/internal/memory"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/rs/zerolog/log"
@@ -15,30 +15,38 @@ import (
 
 // ExportResult summarises a memory-export run.
 type ExportResult struct {
-	ProjectID      string   `json:"project_id"`
-	Project        string   `json:"project"`
-	RepoPath       string   `json:"repo_path"`
-	Files          []string `json:"files"`
-	VaultEntries   int      `json:"vault_entries"`
-	AgentMemories  int      `json:"agent_memories"`
-	SessionDigests int      `json:"session_digests"`
-	Committed      bool     `json:"committed"`
-	Pushed         bool     `json:"pushed"`
-	PushError      string   `json:"push_error,omitempty"`
+	ProjectID                string   `json:"project_id"`
+	Project                  string   `json:"project"`
+	RepoPath                 string   `json:"repo_path"`
+	Files                    []string `json:"files"`
+	VaultEntries             int      `json:"vault_entries"`
+	AgentMemories            int      `json:"agent_memories"`
+	RawAgentMemoriesIncluded bool     `json:"raw_agent_memories_included"`
+	SessionDigests           int      `json:"session_digests"`
+	Committed                bool     `json:"committed"`
+	Pushed                   bool     `json:"pushed"`
+	PushError                string   `json:"push_error,omitempty"`
 }
 
-// ExportProjectMemory collects all of a project's agentic memory (vault
-// entries, per-session agent memories and session digests) plus its metadata,
-// writes a portable bundle into the repository's .cortex/ directory as
-// memory.json + README.md, commits it, and optionally pushes it to GitHub so
-// teammates receive the shared context.
+// ExportProjectMemory performs the compact export recommended for team
+// transfer. It includes durable vault entries and compressed session digests,
+// while leaving raw agent memories in local PocketBase storage.
 func (s *Service) ExportProjectMemory(ctx context.Context, user *core.Record, projectID string, push bool) (*ExportResult, error) {
+	return s.exportProjectMemory(ctx, user, projectID, push, false)
+}
+
+func (s *Service) exportProjectMemory(ctx context.Context, user *core.Record, projectID string, push, includeRaw bool) (*ExportResult, error) {
 	project, err := s.App.FindRecordById(db.CollProjects, projectID)
 	if err != nil {
 		return nil, fmt.Errorf("project not found: %s", projectID)
 	}
 
+	exportMode := "compact"
+	if includeRaw {
+		exportMode = "full"
+	}
 	bundle := memory.Bundle{
+		ExportMode: exportMode,
 		Project: memory.ProjectMeta{
 			Name:         project.GetString("name"),
 			Description:  project.GetString("description"),
@@ -63,23 +71,25 @@ func (s *Service) ExportProjectMemory(ctx context.Context, user *core.Record, pr
 		}
 	}
 
-	// 2. Per-session agent memories.
-	if recs, err := s.App.FindRecordsByFilter(db.CollAgentMemories, "project = {:p}", "-updated", 5000, 0,
-		map[string]any{"p": project.Id}); err == nil {
-		for _, r := range recs {
-			bundle.AgentMemories = append(bundle.AgentMemories, memory.AgentMemory{
-				IDE:       r.GetString("ide"),
-				Client:    r.GetString("client_name"),
-				SessionID: r.GetString("session_id"),
-				Category:  r.GetString("category"),
-				Title:     r.GetString("title"),
-				Content:   r.GetString("content"),
-				Tags:      r.GetStringSlice("tags"),
-				UpdatedAt: isoTime(r, "updated"),
-			})
+	// 2. Raw per-session agent memories are opt-in because session digests
+	// provide the compact, shareable handoff for normal exports.
+	if includeRaw {
+		if recs, err := s.App.FindRecordsByFilter(db.CollAgentMemories, "project = {:p}", "-updated", 5000, 0,
+			map[string]any{"p": project.Id}); err == nil {
+			for _, r := range recs {
+				bundle.AgentMemories = append(bundle.AgentMemories, memory.AgentMemory{
+					IDE:       r.GetString("ide"),
+					Client:    r.GetString("client_name"),
+					SessionID: r.GetString("session_id"),
+					Category:  r.GetString("category"),
+					Title:     r.GetString("title"),
+					Content:   r.GetString("content"),
+					Tags:      r.GetStringSlice("tags"),
+					UpdatedAt: isoTime(r, "updated"),
+				})
+			}
 		}
 	}
-
 	// 3. Session digests.
 	if recs, err := s.App.FindRecordsByFilter(db.CollSessionDigests, "project = {:p}", "-updated", 2000, 0,
 		map[string]any{"p": project.Id}); err == nil {
@@ -108,13 +118,14 @@ func (s *Service) ExportProjectMemory(ctx context.Context, user *core.Record, pr
 	}
 
 	res := &ExportResult{
-		ProjectID:      project.Id,
-		Project:        project.GetString("name"),
-		RepoPath:       repoPath,
-		Files:          files,
-		VaultEntries:   len(bundle.VaultEntries),
-		AgentMemories:  len(bundle.AgentMemories),
-		SessionDigests: len(bundle.SessionDigests),
+		ProjectID:                project.Id,
+		Project:                  project.GetString("name"),
+		RepoPath:                 repoPath,
+		Files:                    files,
+		VaultEntries:             len(bundle.VaultEntries),
+		AgentMemories:            len(bundle.AgentMemories),
+		RawAgentMemoriesIncluded: includeRaw,
+		SessionDigests:           len(bundle.SessionDigests),
 	}
 
 	// 5. Commit the .cortex directory so it travels with the repo.
@@ -182,7 +193,8 @@ func (s *Service) handleExportMemory(e *core.RequestEvent) error {
 	}
 	projectID := e.Request.PathValue("project")
 	push := e.Request.URL.Query().Get("push") == "true"
-	res, err := s.ExportProjectMemory(e.Request.Context(), user, projectID, push)
+	includeRaw := e.Request.URL.Query().Get("full") == "true"
+	res, err := s.exportProjectMemory(e.Request.Context(), user, projectID, push, includeRaw)
 	if err != nil {
 		return e.InternalServerError(err.Error(), nil)
 	}

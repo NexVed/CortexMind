@@ -1,0 +1,2 @@
+# The built SolidJS UI is copied here by build-windows.ps1 (from ui/dist).
+# This placeholder keeps the embed package compilable before a UI build.

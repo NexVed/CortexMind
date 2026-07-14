@@ -8,6 +8,9 @@ import {
 } from 'solid-js';
 import { pb } from './pb';
 import { RecordModel } from 'pocketbase';
+import { syncGitHubRepos } from './client';
+import { queryClient } from './queryClient';
+import { qk } from './queries';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -26,6 +29,8 @@ interface AuthContextValue {
   isLoading: () => boolean;
   error: () => string;
   loginWithGitHub: () => Promise<void>;
+  loginWithPassword: (email: string, password: string) => Promise<void>;
+  registerWithPassword: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -82,18 +87,30 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
     setError('');
     setIsLoading(true);
     try {
-      const result = await pb.collection('users').authWithOAuth2({ 
+      // Use the `urlCallback` flow instead of PocketBase's default popup.
+      // The default opens a `window.open` popup, which the native desktop
+      // webview (Wails/WebView2) cannot host and which crashes the app. With
+      // urlCallback we open GitHub in the *system browser* — Wails routes
+      // target=_blank to the OS browser — and the SDK completes the login over
+      // its realtime channel once the OAuth redirect hits the local daemon.
+      // This path also works unchanged in a normal browser.
+      const result = await pb.collection('users').authWithOAuth2({
         provider: 'github',
-        scopes: ['repo', 'read:user', 'user:email']
+        scopes: ['repo', 'read:user', 'user:email'],
+        urlCallback: (url) => {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        },
       });
       setUser(recordToUser(result.record as RecordModel));
-      
-      if (result.meta?.accessToken) {
-        // Run sync asynchronously so it doesn't block the UI
-        syncGitHubRepos(result.meta.accessToken).catch(err => {
-          console.error('Failed to sync GitHub repos:', err);
-        });
-      }
+
+      // Import the user's GitHub repositories as projects. The daemon already
+      // stored the GitHub access token on the user record during OAuth, so we
+      // trigger the server-side sync (fully paginated, no dependency on the
+      // OAuth `meta` reaching the client) and refresh the projects list when it
+      // finishes. Fire-and-forget so it doesn't block the UI.
+      syncGitHubRepos()
+        .then(() => queryClient.invalidateQueries({ queryKey: qk.projects }))
+        .catch((err) => console.error('Failed to sync GitHub repos:', err));
     } catch (err: any) {
       const msg =
         err?.message ?? err?.data?.message ?? 'GitHub login failed. Please try again.';
@@ -104,54 +121,49 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
     }
   };
 
-  const syncGitHubRepos = async (token: string) => {
-    // GitHub paginates at 100 repos/page. Walk every page so users with more
-    // than 100 repositories (or repos spread across orgs) see all of them.
-    // visibility=all + affiliation ensures private, collaborator and org repos
-    // are included, not just the ones the user personally owns.
-    const repos: any[] = [];
-    for (let page = 1; page <= 50; page++) {
-      const res = await fetch(
-        `https://api.github.com/user/repos?per_page=100&page=${page}&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-          },
-        },
-      );
-      if (!res.ok) throw new Error(`GitHub API error: ${res.statusText}`);
-      const batch = await res.json();
-      if (!Array.isArray(batch) || batch.length === 0) break;
-      repos.push(...batch);
-      if (batch.length < 100) break;
-    }
-
-    const existingProjects = await pb.collection('projects').getFullList();
-    const existingUrls = new Set(existingProjects.map(p => p.github_url).filter(Boolean));
-
-    const colors = ['#E8326E', '#3B82F6', '#22C55E', '#F59E0B', '#A855F7'];
-
-    for (let i = 0; i < repos.length; i++) {
-      const repo = repos[i];
-      if (!existingUrls.has(repo.html_url)) {
-        await pb.collection('projects').create({
-          name: repo.name,
-          description: repo.description || 'Synced from GitHub',
-          github_url: repo.html_url,
-          status: 'active',
-          progress: 0,
-          owner: pb.authStore.record?.id,
-          icon_color: colors[i % colors.length],
-        });
-      }
-    }
-  };
-
   const logout = () => {
     pb.authStore.clear();
     setUser(null);
+  };
+
+  // Local (email/password) sign-in — for users who don't want to use GitHub.
+  const loginWithPassword = async (email: string, password: string) => {
+    setError('');
+    setIsLoading(true);
+    try {
+      const res = await pb.collection('users').authWithPassword(email, password);
+      setUser(recordToUser(res.record as RecordModel));
+    } catch (err: any) {
+      setError(err?.data?.message ?? err?.message ?? 'Invalid email or password.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Local account creation, then immediate sign-in. No GitHub required.
+  const registerWithPassword = async (
+    email: string,
+    password: string,
+    displayName?: string,
+  ) => {
+    setError('');
+    setIsLoading(true);
+    try {
+      await pb.collection('users').create({
+        email,
+        password,
+        passwordConfirm: password,
+        display_name: displayName || email.split('@')[0],
+      });
+      const res = await pb.collection('users').authWithPassword(email, password);
+      setUser(recordToUser(res.record as RecordModel));
+    } catch (err: any) {
+      setError(err?.data?.message ?? err?.message ?? 'Could not create account.');
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const value: AuthContextValue = {
@@ -161,6 +173,8 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
     isLoading,
     error,
     loginWithGitHub,
+    loginWithPassword,
+    registerWithPassword,
     logout,
   };
 

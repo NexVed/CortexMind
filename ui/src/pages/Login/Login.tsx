@@ -1,4 +1,4 @@
-import { Component, Show, onMount } from 'solid-js';
+import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { useAuth } from '../../api/auth';
 import './Login.css';
@@ -13,37 +13,98 @@ const GitHubIcon = () => (
 const features = ['Local-first', 'Git-synced memory', 'Multi-agent context'];
 
 export const LoginPage: Component = () => {
-  const { loginWithGitHub, isAuthenticated, isLoading, error } = useAuth();
+  const { loginWithGitHub, loginWithPassword, registerWithPassword, isAuthenticated, isLoading, error } = useAuth();
   const navigate = useNavigate();
+
+  const [mode, setMode] = createSignal<'signin' | 'register'>('signin');
+  const [email, setEmail] = createSignal('');
+  const [password, setPassword] = createSignal('');
 
   onMount(() => {
     if (isAuthenticated()) navigate('/', { replace: true });
   });
 
-  const handleLogin = async () => {
-    await loginWithGitHub();
+  const goHomeIfAuthed = () => {
     if (isAuthenticated()) navigate('/', { replace: true });
+  };
+
+  const handleGitHub = async () => {
+    await loginWithGitHub();
+    goHomeIfAuthed();
+  };
+
+  const handleLocal = async (e: Event) => {
+    e.preventDefault();
+    try {
+      if (mode() === 'register') {
+        await registerWithPassword(email().trim(), password());
+      } else {
+        await loginWithPassword(email().trim(), password());
+      }
+      goHomeIfAuthed();
+    } catch {
+      /* error surfaced via auth context */
+    }
   };
 
   return (
     <div class="login-page">
       <main class="login-card">
-        <div class="login-mark" aria-hidden="true">C</div>
-
-        <h1 class="login-heading">Sign in to CortexMind</h1>
+        <img src="/logowithname.png" alt="CortexMind" class="login-logo" />
         <p class="login-sub">The shared brain for AI development.</p>
 
         <button
           class="login-github-btn"
-          onClick={handleLogin}
+          onClick={handleGitHub}
           disabled={isLoading()}
           aria-busy={isLoading()}
         >
           <Show when={!isLoading()} fallback={<span class="login-spinner" aria-hidden="true" />}>
             <GitHubIcon />
           </Show>
-          {isLoading() ? 'Connecting to GitHub…' : 'Continue with GitHub'}
+          {isLoading() ? 'Working…' : 'Continue with GitHub'}
         </button>
+
+        <div class="login-divider"><span>or</span></div>
+
+        <form class="login-form" onSubmit={handleLocal}>
+          <input
+            class="login-input"
+            type="email"
+            autocomplete="email"
+            placeholder="you@example.com"
+            required
+            value={email()}
+            onInput={(e) => setEmail(e.currentTarget.value)}
+          />
+          <input
+            class="login-input"
+            type="password"
+            autocomplete={mode() === 'register' ? 'new-password' : 'current-password'}
+            placeholder="Password"
+            required
+            minLength={8}
+            value={password()}
+            onInput={(e) => setPassword(e.currentTarget.value)}
+          />
+          <button class="login-local-btn" type="submit" disabled={isLoading()}>
+            {mode() === 'register' ? 'Create account' : 'Sign in'}
+          </button>
+        </form>
+
+        <p class="login-switch">
+          <Show
+            when={mode() === 'signin'}
+            fallback={
+              <>Already have an account?{' '}
+                <button type="button" class="login-link" onClick={() => setMode('signin')}>Sign in</button>
+              </>
+            }
+          >
+            No account?{' '}
+            <button type="button" class="login-link" onClick={() => setMode('register')}>Create one</button>
+          </Show>
+        </p>
 
         <Show when={error()}>
           <div class="login-error" role="alert">{error()}</div>
@@ -57,11 +118,6 @@ export const LoginPage: Component = () => {
             </li>
           ))}
         </ul>
-
-        <p class="login-fineprint">
-          By continuing, you connect your GitHub account to CortexMind for repository
-          access and project intelligence.
-        </p>
       </main>
     </div>
   );

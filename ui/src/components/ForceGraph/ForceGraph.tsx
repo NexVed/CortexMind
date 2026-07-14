@@ -71,32 +71,40 @@ export const ForceGraph: Component<Props> = (props) => {
   let moved = false;
 
   // Physics constants — tuned to settle quickly and stay calm.
-  const CENTER = 0.045;
-  const REPULSION = 320;
-  const LINK_K = 0.06;
-  const IDEAL = 48;
+  const CENTER = 0.012;
+  const REPULSION = 720;
+  const REPULSION_RADIUS = 420;
+  const GRID_SIZE = 420;
+  const COLLISION_GAP = 22;
+  const LINK_K = 0.035;
+  const IDEAL = 96;
   const FRICTION = 0.8;
   const COOL = 0.985;
   const ALPHA_MIN = 0.02;
 
+  let ensureLoop: () => void = () => {};
+
   const reheat = () => {
     alpha = Math.max(alpha, 0.9);
+    ensureLoop();
   };
 
   const rebuild = () => {
     const byId = new Map<string, P>();
-    nodes = props.nodes.map((n) => {
+    nodes = props.nodes.map((n, index) => {
       const prev = posById.get(n.id);
       const baseW = W || 800;
       const baseH = H || 500;
+      const angle = index * 2.399963;
+      const spread = 55 + Math.sqrt(index + 1) * 22;
       const p: P = {
         id: n.id,
         label: n.label,
         color: n.color,
         radius: n.radius ?? 6,
         labelAlways: !!n.labelAlways,
-        x: prev?.x ?? baseW / 2 + (Math.random() - 0.5) * Math.min(baseW, baseH) * 0.5,
-        y: prev?.y ?? baseH / 2 + (Math.random() - 0.5) * Math.min(baseW, baseH) * 0.5,
+        x: prev?.x ?? baseW / 2 + Math.cos(angle) * Math.min(spread, baseW * 0.42),
+        y: prev?.y ?? baseH / 2 + Math.sin(angle) * Math.min(spread, baseH * 0.42),
         vx: 0,
         vy: 0,
       };
@@ -131,33 +139,55 @@ export const ForceGraph: Component<Props> = (props) => {
   };
 
   const tick = () => {
-    if (alpha > ALPHA_MIN && nodes.length > 0) {
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          let dx = a.x - b.x;
-          let dy = a.y - b.y;
-          let d2 = dx * dx + dy * dy;
-          if (d2 === 0) {
-            dx = Math.random() - 0.5;
-            dy = Math.random() - 0.5;
-            d2 = dx * dx + dy * dy;
-          }
-          if (d2 < 62500) {
-            const dist = Math.sqrt(d2);
-            const f = (REPULSION / d2) * alpha;
-            const fx = (dx / dist) * f;
-            const fy = (dy / dist) * f;
-            a.vx += fx;
-            a.vy += fy;
-            b.vx -= fx;
-            b.vy -= fy;
+    raf = 0;
+    const active = nodes.length > 0 && (alpha > ALPHA_MIN || dragNode !== null || panning);
+    if (active) {
+      const grid = new Map<string, P[]>();
+      for (const n of nodes) {
+        const key = Math.floor(n.x / GRID_SIZE) + ':' + Math.floor(n.y / GRID_SIZE);
+        const cell = grid.get(key);
+        if (cell) cell.push(n);
+        else grid.set(key, [n]);
+      }
+
+      for (const a of nodes) {
+        const cellX = Math.floor(a.x / GRID_SIZE);
+        const cellY = Math.floor(a.y / GRID_SIZE);
+        for (let gx = cellX - 1; gx <= cellX + 1; gx++) {
+          for (let gy = cellY - 1; gy <= cellY + 1; gy++) {
+            const candidates = grid.get(gx + ':' + gy);
+            if (!candidates) continue;
+            for (const b of candidates) {
+              if (a === b) continue;
+              let dx = a.x - b.x;
+              let dy = a.y - b.y;
+              let d2 = dx * dx + dy * dy;
+              if (d2 === 0) {
+                dx = 0.01;
+                dy = 0.01;
+                d2 = dx * dx + dy * dy;
+              }
+              if (d2 < REPULSION_RADIUS * REPULSION_RADIUS) {
+                const dist = Math.sqrt(d2);
+                const f = (REPULSION / d2) * alpha;
+                a.vx += (dx / dist) * f;
+                a.vy += (dy / dist) * f;
+
+                // Keep bubble edges visibly separated, not just their centers.
+                const minDist = a.radius + b.radius + COLLISION_GAP;
+                if (dist < minDist) {
+                  const collision = (minDist - dist) * 0.18 * alpha;
+                  a.vx += (dx / dist) * collision;
+                  a.vy += (dy / dist) * collision;
+                }
+              }
+            }
           }
         }
         a.vx += (W / 2 - a.x) * CENTER * alpha;
         a.vy += (H / 2 - a.y) * CENTER * alpha;
       }
+
       for (const l of links) {
         const dx = l.t.x - l.s.x;
         const dy = l.t.y - l.s.y;
@@ -170,6 +200,7 @@ export const ForceGraph: Component<Props> = (props) => {
         l.t.vx -= fx;
         l.t.vy -= fy;
       }
+
       for (const n of nodes) {
         if (n === dragNode) continue;
         n.vx *= FRICTION;
@@ -180,10 +211,16 @@ export const ForceGraph: Component<Props> = (props) => {
       }
       alpha *= COOL;
     }
+
     draw();
-    raf = requestAnimationFrame(tick);
+    if (nodes.length > 0 && (alpha > ALPHA_MIN || dragNode !== null || panning)) {
+      raf = requestAnimationFrame(tick);
+    }
   };
 
+  ensureLoop = () => {
+    if (!raf) raf = requestAnimationFrame(tick);
+  };
   const draw = () => {
     if (!ctx) return;
     ctx.clearRect(0, 0, W, H);
@@ -218,6 +255,22 @@ export const ForceGraph: Component<Props> = (props) => {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
       ctx.fillStyle = n.color;
+      ctx.fill();
+
+      // A soft highlight/shadow gradient keeps the theme color vivid while
+      // giving every node depth on the quiet graph background.
+      const gloss = ctx.createRadialGradient(
+        n.x - n.radius * 0.35,
+        n.y - n.radius * 0.4,
+        0,
+        n.x,
+        n.y,
+        n.radius * 1.15,
+      );
+      gloss.addColorStop(0, 'rgba(255,255,255,0.62)');
+      gloss.addColorStop(0.42, 'rgba(255,255,255,0.08)');
+      gloss.addColorStop(1, 'rgba(20,20,40,0.25)');
+      ctx.fillStyle = gloss;
       ctx.fill();
 
       if (sel === n.id || (match && q.length > 0)) {
@@ -284,6 +337,7 @@ export const ForceGraph: Component<Props> = (props) => {
       hover = nodeAt(x, y);
       if (canvas) canvas.style.cursor = hover ? 'pointer' : 'grab';
     }
+    draw();
   };
   const onUp = (e: MouseEvent) => {
     if (!moved) {
@@ -309,6 +363,7 @@ export const ForceGraph: Component<Props> = (props) => {
     offX = mx - ((mx - offX) * next) / scale;
     offY = my - ((my - offY) * next) / scale;
     scale = next;
+    draw();
   };
 
   const zoomBy = (factor: number) => {
@@ -318,12 +373,14 @@ export const ForceGraph: Component<Props> = (props) => {
     offX = cx - ((cx - offX) * next) / scale;
     offY = cy - ((cy - offY) * next) / scale;
     scale = next;
+    draw();
   };
   const resetView = () => {
     scale = 1;
     offX = 0;
     offY = 0;
     reheat();
+    draw();
   };
 
   onMount(() => {

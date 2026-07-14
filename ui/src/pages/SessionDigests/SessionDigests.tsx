@@ -15,6 +15,7 @@ import {
 } from '../../api/client';
 import { useProjects, useSessionDigests, useGenerateSessionDigest } from '../../api/queries';
 import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
 import './SessionDigests.css';
 
 // ── Minimal markdown renderer (headings, bullets, quote, bold) ──
@@ -81,11 +82,13 @@ const CompactJson: Component<{ data: Record<string, any> }> = (props) => {
 };
 
 export const SessionDigestsPage: Component = () => {
-  const [selectedProject, setSelectedProject] = createSignal<string>('');
   const [error, setError] = createSignal<string>('');
 
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(undefined, projects);
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
   const digestsQuery = useSessionDigests(selectedProject);
   const digests = () => digestsQuery.data;
   const genDigestM = useGenerateSessionDigest();

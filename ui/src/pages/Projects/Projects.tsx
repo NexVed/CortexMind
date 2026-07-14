@@ -10,8 +10,9 @@ import {
   Play,
   CheckCircle2,
   Scan,
+  RefreshCw,
 } from 'lucide-solid';
-import { useProjects, useCreateProject, useScanProject } from '../../api/queries';
+import { useProjects, useCreateProject, useScanProject, useSyncGitHubRepos } from '../../api/queries';
 import { isEnabled } from '../../api/settings';
 import { Modal } from '../../components/Modal/Modal';
 import './Projects.css';
@@ -23,7 +24,9 @@ export const ProjectsPage: Component = () => {
   const projects = () => projectsQuery.data;
   const createM = useCreateProject();
   const scanM = useScanProject();
+  const syncM = useSyncGitHubRepos();
   const [scanning, setScanning] = createSignal<Record<string, boolean>>({});
+  const [syncErr, setSyncErr] = createSignal('');
 
   // ── Create project modal ──
   const [showCreate, setShowCreate] = createSignal(false);
@@ -31,11 +34,13 @@ export const ProjectsPage: Component = () => {
   const [formErr, setFormErr] = createSignal('');
   const [fName, setFName] = createSignal('');
   const [fDesc, setFDesc] = createSignal('');
+  const [fPath, setFPath] = createSignal('');
   const [fUrl, setFUrl] = createSignal('');
 
   const openCreate = () => {
     setFName('');
     setFDesc('');
+    setFPath('');
     setFUrl('');
     setFormErr('');
     setShowCreate(true);
@@ -52,6 +57,7 @@ export const ProjectsPage: Component = () => {
       const created = await createM.mutateAsync({
         name: fName().trim(),
         description: fDesc().trim(),
+        path: fPath().trim(),
         github_url: fUrl().trim(),
       });
       setShowCreate(false);
@@ -66,16 +72,27 @@ export const ProjectsPage: Component = () => {
     }
   };
 
+  const [filterStatus, setFilterStatus] = createSignal<'all' | 'active' | 'archived'>('active');
+
   const filteredProjects = () => {
     const p = projects();
     if (!p) return [];
-    if (!searchQuery()) return p;
-    const q = searchQuery().toLowerCase();
-    return p.filter(
-      (pr) =>
-        pr.name.toLowerCase().includes(q) ||
-        (pr.description && pr.description.toLowerCase().includes(q))
-    );
+
+    let filtered = p;
+    if (filterStatus() !== 'all') {
+      filtered = filtered.filter(pr => pr.status === filterStatus());
+    }
+
+    if (searchQuery()) {
+      const q = searchQuery().toLowerCase();
+      filtered = filtered.filter(
+        (pr) =>
+          pr.name.toLowerCase().includes(q) ||
+          (pr.description && pr.description.toLowerCase().includes(q))
+      );
+    }
+
+    return filtered;
   };
 
   const handleScan = async (projectId: string) => {
@@ -86,6 +103,15 @@ export const ProjectsPage: Component = () => {
       console.error('Scan failed:', err);
     } finally {
       setScanning((prev) => ({ ...prev, [projectId]: false }));
+    }
+  };
+
+  const handleSync = async () => {
+    setSyncErr('');
+    try {
+      await syncM.mutateAsync();
+    } catch (err: any) {
+      setSyncErr(err?.message || 'GitHub sync failed');
     }
   };
 
@@ -102,12 +128,20 @@ export const ProjectsPage: Component = () => {
           </div>
         </div>
         <div class="page-actions">
+          <button class="btn secondary" onClick={handleSync} disabled={syncM.isPending}>
+            <RefreshCw size={16} class={syncM.isPending ? 'spin' : ''} />
+            {syncM.isPending ? 'Syncing GitHub...' : 'Sync GitHub'}
+          </button>
           <button class="btn primary" onClick={openCreate}>
             <Plus size={16} />
             Add Project
           </button>
         </div>
       </div>
+
+      <Show when={syncErr()}>
+        <div class="cx-modal-error">{syncErr()}</div>
+      </Show>
 
       <div class="projects-toolbar">
         <div class="search-box">
@@ -120,9 +154,9 @@ export const ProjectsPage: Component = () => {
           />
         </div>
         <div class="projects-filters">
-          <button class="filter-btn active">All</button>
-          <button class="filter-btn">Active</button>
-          <button class="filter-btn">Archived</button>
+          <button class={`filter-btn ${filterStatus() === 'all' ? 'active' : ''}`} onClick={() => setFilterStatus('all')}>All</button>
+          <button class={`filter-btn ${filterStatus() === 'active' ? 'active' : ''}`} onClick={() => setFilterStatus('active')}>Active</button>
+          <button class={`filter-btn ${filterStatus() === 'archived' ? 'active' : ''}`} onClick={() => setFilterStatus('archived')}>Archived</button>
         </div>
       </div>
 
@@ -150,6 +184,8 @@ export const ProjectsPage: Component = () => {
             const isScanning = scanning()[project.id];
             
             return (
+
+
               <div class="project-list-item">
                 <div class="project-list-item-left">
                   <div class="project-card-avatar" style={{ background: project.icon_color || 'var(--accent)' }}>
@@ -190,7 +226,7 @@ export const ProjectsPage: Component = () => {
                   <span class="project-card-time">
                     Updated {new Date(project.updated).toLocaleDateString()}
                   </span>
-                  <button 
+                  <button
                     class={`btn secondary small ${isScanning ? 'scanning' : ''}`}
                     onClick={() => handleScan(project.id)}
                     disabled={isScanning}
@@ -231,6 +267,17 @@ export const ProjectsPage: Component = () => {
             onInput={(e) => setFDesc(e.currentTarget.value)}
             placeholder="What is this project about?"
           />
+        </div>
+        <div class="cx-field">
+          <label>Local folder path</label>
+          <input
+            value={fPath()}
+            onInput={(e) => setFPath(e.currentTarget.value)}
+            placeholder="C:\\Users\\you\\code\\my-project"
+          />
+          <small class="cx-field-hint">
+            Point CortexMind at a folder on this machine to index and watch it — no GitHub required.
+          </small>
         </div>
         <div class="cx-field">
           <label>GitHub URL</label>

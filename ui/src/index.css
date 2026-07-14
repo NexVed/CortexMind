@@ -173,7 +173,7 @@ button {
 .btn.secondary {
   background: var(--bg-elevated);
   color: var(--text-primary);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
 }
 .btn.secondary:not(:disabled):hover {
   background: var(--border);

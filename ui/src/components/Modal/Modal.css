@@ -90,6 +90,12 @@
   resize: vertical;
 }
 
+.cx-field-hint {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted, #9aa0aa);
+}
+
 .cx-modal-actions {
   display: flex;
   justify-content: flex-end;

@@ -16,6 +16,7 @@ type PromptOptions struct {
 	IncludeTasks    bool `json:"include_tasks"`
 	IncludeVault    bool `json:"include_vault"`
 	IncludeActivity bool `json:"include_activity"`
+	Preview         bool `json:"preview"`
 }
 
 // PromptResult is returned to the UI after generation.
@@ -27,7 +28,7 @@ type PromptResult struct {
 	TokenEstimate int    `json:"token_estimate"`
 }
 
-// GenerateSystemPrompt builds a project-specific agent system prompt entirely
+// GetSystemPrompt and SaveSystemPrompt expose the stored project prompt.
 // from the stored analysis (tech stack, auth, features, structure) plus the
 // selected knowledge sources (vault decisions, active tasks, recent activity).
 //
@@ -35,6 +36,45 @@ type PromptResult struct {
 // codebase and agent memory, and the prompt it emits is a clean, ready-to-paste
 // system prompt for ChatGPT, Claude or any coding agent. The result is
 // persisted as a memory vault entry and on the project record.
+func (s *Service) GetSystemPrompt(projectID string) (*PromptResult, error) {
+	project, err := s.App.FindRecordById(db.CollProjects, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %s", projectID)
+	}
+	prompt := storedSystemPrompt(project)
+	result := &PromptResult{
+		ProjectID:     project.Id,
+		ProjectName:   project.GetString("name"),
+		Provider:      "custom",
+		Prompt:        prompt,
+		TokenEstimate: len(prompt) / 4,
+	}
+	return result, nil
+}
+
+func (s *Service) SaveSystemPrompt(user *core.Record, projectID, prompt string) (*PromptResult, error) {
+	project, err := s.App.FindRecordById(db.CollProjects, projectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %s", projectID)
+	}
+	if owner := project.GetString("owner"); owner != "" && owner != user.Id {
+		return nil, fmt.Errorf("project not found: %s", projectID)
+	}
+	prompt = strings.TrimSpace(prompt)
+	if err := s.persistSystemPromptAs(user, project, prompt, "saved_system_prompt", "user"); err != nil {
+		return nil, err
+	}
+	return &PromptResult{
+		ProjectID:     project.Id,
+		ProjectName:   project.GetString("name"),
+		Provider:      "custom",
+		Prompt:        prompt,
+		TokenEstimate: len(prompt) / 4,
+	}, nil
+}
+
+// GenerateSystemPrompt builds a project-specific agent system prompt entirely
+// from the stored analysis and selected knowledge sources.
 func (s *Service) GenerateSystemPrompt(ctx context.Context, user *core.Record, projectID string, opts PromptOptions) (*PromptResult, error) {
 	project, err := s.App.FindRecordById(db.CollProjects, projectID)
 	if err != nil {
@@ -54,8 +94,10 @@ func (s *Service) GenerateSystemPrompt(ctx context.Context, user *core.Record, p
 	result.Prompt = s.buildSystemPrompt(project, &analysis, opts)
 	result.TokenEstimate = len(result.Prompt) / 4
 
-	if err := s.persistSystemPrompt(user, project, result.Prompt); err != nil {
-		log.Warn().Err(err).Str("project", project.Id).Msg("failed to persist system prompt")
+	if !opts.Preview {
+		if err := s.persistSystemPrompt(user, project, result.Prompt); err != nil {
+			log.Warn().Err(err).Str("project", project.Id).Msg("failed to persist system prompt")
+		}
 	}
 	return result, nil
 }
@@ -227,23 +269,45 @@ func appendStackLine(lines []string, label string, items []string) []string {
 	return append(lines, "- "+label+": "+strings.Join(items, ", ")+"\n")
 }
 
+func storedSystemPrompt(project *core.Record) string {
+	var meta map[string]any
+	if err := project.UnmarshalJSONField("metadata", &meta); err != nil || meta == nil {
+		return ""
+	}
+	prompt, _ := meta["system_prompt"].(string)
+	return prompt
+}
+
 func (s *Service) persistSystemPrompt(user *core.Record, project *core.Record, prompt string) error {
-	// Store on the project metadata for quick retrieval.
+	return s.persistSystemPromptAs(user, project, prompt, "generated_system_prompt", "cortex-prompt-generator")
+}
+
+func (s *Service) persistSystemPromptAs(user *core.Record, project *core.Record, prompt, activity, sourceAgent string) error {
 	var meta map[string]any
 	if err := project.UnmarshalJSONField("metadata", &meta); err != nil || meta == nil {
 		meta = map[string]any{}
 	}
-	meta["system_prompt"] = prompt
+	if prompt == "" {
+		delete(meta, "system_prompt")
+	} else {
+		meta["system_prompt"] = prompt
+	}
 	project.Set("metadata", meta)
 	if err := s.App.Save(project); err != nil {
 		return err
 	}
 
-	// Upsert a memory vault entry so the prompt becomes shareable IDE memory.
 	title := project.GetString("name") + " — Agent System Prompt"
 	existing, _ := s.App.FindFirstRecordByFilter(db.CollVaultEntries,
 		"project = {:p} && category = 'memory' && title = {:t}",
 		map[string]any{"p": project.Id, "t": title})
+
+	if prompt == "" {
+		if existing != nil {
+			return s.App.Delete(existing)
+		}
+		return nil
+	}
 
 	var rec *core.Record
 	if existing != nil {
@@ -263,10 +327,10 @@ func (s *Service) persistSystemPrompt(user *core.Record, project *core.Record, p
 	}
 	rec.Set("content", prompt)
 	rec.Set("is_shared", true)
-	rec.Set("source_agent", "cortex-prompt-generator")
+	rec.Set("source_agent", sourceAgent)
 	if err := s.App.Save(rec); err != nil {
 		return err
 	}
-	db.LogActivity(s.App, project.Id, user.Id, "generated_system_prompt", title, nil)
+	db.LogActivity(s.App, project.Id, user.Id, activity, title, nil)
 	return nil
 }

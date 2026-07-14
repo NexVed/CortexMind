@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../../api/auth';
 import {
   buildKnowledgeGraph,
+  buildCodeGraphKnowledgeGraph,
   type Project,
   type KnowledgeGraphNode,
 } from '../../api/client';
@@ -27,6 +28,7 @@ import {
   useProjectBrainStats,
   useActiveAgents,
   useProjectActivity,
+  useCodeGraph,
 } from '../../api/queries';
 import { ProjectBrainCard } from './ProjectBrainCard';
 import { ActivityFeedCard } from './ActivityFeedCard';
@@ -37,6 +39,7 @@ import { ProjectTimelineCard } from './ProjectTimelineCard';
 import { QuickActionsCard } from './QuickActionsCard';
 import { StatusBar } from './StatusBar';
 import './Dashboard.css';
+import { createProjectSelection } from '../../api/projectSelection';
 
 // ── Dashboard Main ─────────────────────────────────────
 
@@ -45,20 +48,19 @@ export const DashboardMain: Component = () => {
   const navigate = useNavigate();
   
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedProjectId = () => searchParams.project || null;
-  const setSelectedProjectId = (id: string) => setSearchParams({ project: id }, { replace: true });
 
-  // ── Fetch all data (server state via solid-query) ──
+  // ── Project selection and server state ─────────────────
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
-  const tasksQuery = useTasks();
-  const tasks = () => tasksQuery.data;
-  const handoffsQuery = useHandoffs();
-  const handoffs = () => handoffsQuery.data;
-  const vaultQuery = useVaultEntries();
-  const vaultEntries = () => vaultQuery.data;
-  const filesQuery = useRecentFiles(500);
-  const allFiles = () => filesQuery.data;
+  const projectSelection = createProjectSelection(
+    () => typeof searchParams.project === 'string' ? searchParams.project : undefined,
+    projects,
+  );
+  const selectedProjectId = () => projectSelection.selected() || null;
+  const setSelectedProjectId = (id: string) => {
+    projectSelection.select(id);
+    setSearchParams({ project: id }, { replace: true });
+  };
   const daemonQuery = useDaemonStatus();
   const daemonStatus = () => daemonQuery.data;
 
@@ -83,23 +85,41 @@ export const DashboardMain: Component = () => {
   });
 
   const projectId = createMemo(() => activeProject()?.id ?? '');
+  const projectScope = () => ({ projectId: projectId() });
 
   // ── Scoped data (per-project) ──────────────────────
+  // Keep every dashboard card on the active project's query key. Without
+  // this, the bubble graph and file totals showed data from all repositories.
+  const tasksQuery = useTasks(projectScope);
+  const tasks = () => tasksQuery.data;
+  const handoffsQuery = useHandoffs(projectScope);
+  const handoffs = () => handoffsQuery.data;
+  const vaultQuery = useVaultEntries(projectScope);
+  const vaultEntries = () => vaultQuery.data;
+  const filesQuery = useRecentFiles(500, projectId);
+  const allFiles = () => filesQuery.data;
   const brainStatsQuery = useProjectBrainStats(projectId);
   const brainStats = () => brainStatsQuery.data;
   const agentsQuery = useActiveAgents(projectId);
   const agents = () => agentsQuery.data;
   const projectActivityQuery = useProjectActivity(projectId, 5);
   const projectActivity = () => projectActivityQuery.data;
+  const codeGraphQuery = useCodeGraph(projectId);
+  const codeGraph = () => codeGraphQuery.data;
 
-  // ── Knowledge graph nodes ─────────────────────────
+  // Prefer the actual persisted code graph. The memory summary remains a
+  // fallback for projects scanned before automatic graph building existed.
   const graphNodes = createMemo<KnowledgeGraphNode[]>(() => {
-    const v = vaultEntries() ?? [];
-    const t = tasks() ?? [];
-    const h = handoffs() ?? [];
-    const f = allFiles() ?? [];
-    return buildKnowledgeGraph(v, t, h, f);
+    const g = codeGraph();
+    if (g?.built) return buildCodeGraphKnowledgeGraph(g);
+    return buildKnowledgeGraph(
+      vaultEntries() ?? [],
+      tasks() ?? [],
+      handoffs() ?? [],
+      allFiles() ?? [],
+    );
   });
+  const graphSource = createMemo(() => (codeGraph()?.built ? 'Code graph' : 'Project memory'));
 
   // ── Aggregated counts ─────────────────────────────
   const projectCount = createMemo(() => projects()?.length ?? 0);
@@ -356,7 +376,7 @@ export const DashboardMain: Component = () => {
           loading={projectActivityQuery.isLoading}
         />
         <AgentsCard agents={agents() ?? []} loading={agentsQuery.isLoading} />
-        <BubbleKnowledgeCard nodes={graphNodes()} />
+        <BubbleKnowledgeCard nodes={graphNodes()} source={graphSource()} />
       </div>
 
       {/* ── Bottom Row: Context · Timeline · Quick Actions ── */}

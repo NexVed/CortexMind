@@ -11,14 +11,23 @@ import {
   Calendar,
   User,
 } from 'lucide-solid';
-import { useTasks, useCreateTask, useUpdateTask } from '../../api/queries';
+import { useProjects, useTasks, useCreateTask, useUpdateTask } from '../../api/queries';
 import { Modal } from '../../components/Modal/Modal';
+import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
+import { createPersistedSignal } from '../../api/persistedState';
 import './Tasks.css';
 
 export const TasksPage: Component = () => {
-  const [searchQuery, setSearchQuery] = createSignal('');
-  const [activeFilter, setActiveFilter] = createSignal('all');
-  const tasksQuery = useTasks();
+  const [searchQuery, setSearchQuery] = createPersistedSignal('tasks.search', '');
+  const [activeFilter, setActiveFilter] = createPersistedSignal('tasks.filter', 'all');
+
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(undefined, projects);
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
+  const tasksQuery = useTasks(() => ({ projectId: selectedProject() }));
   const createTaskM = useCreateTask();
   const updateTaskM = useUpdateTask();
 
@@ -50,6 +59,7 @@ export const TasksPage: Component = () => {
         title: fTitle().trim(),
         description: fDesc().trim(),
         priority: fPriority(),
+        project: selectedProject(),
       });
       setShowCreate(false);
     } catch (err: any) {
@@ -112,6 +122,12 @@ export const TasksPage: Component = () => {
       </div>
 
       <div class="tasks-toolbar">
+        <ProjectSelect
+          projects={projects() || []}
+          selectedId={selectedProject()}
+          onChange={setSelectedProject}
+          placeholder="Choose a project…"
+        />
         <div class="search-box">
           <Search size={16} class="search-icon" />
           <input

@@ -11,7 +11,9 @@ import (
 // RegisterRoutes mounts the CORTEX JSON endpoints on the PocketBase router.
 func (s *Service) RegisterRoutes(se *core.ServeEvent) {
 	se.Router.POST("/api/cortex/scan/{project}", s.handleScanProject)
+	se.Router.GET("/api/cortex/system-prompt/{project}", s.handleGetSystemPrompt)
 	se.Router.POST("/api/cortex/system-prompt/{project}", s.handleSystemPrompt)
+	se.Router.PUT("/api/cortex/system-prompt/{project}", s.handleSaveSystemPrompt)
 	se.Router.GET("/api/cortex/providers", s.handleGetProviders)
 	se.Router.POST("/api/cortex/providers", s.handleSetProviders)
 	se.Router.GET("/api/cortex/knowledge-graph/{project}", s.handleKnowledgeGraph)
@@ -20,9 +22,8 @@ func (s *Service) RegisterRoutes(se *core.ServeEvent) {
 	// paginated so all repos are visible — not just the first page).
 	se.Router.GET("/api/cortex/github/repos", s.handleListGitHubRepos)
 	se.Router.POST("/api/cortex/github/sync", s.handleSyncGitHubRepos)
-
-	// Portable memory bundle export (.cortex/memory.json + README.md). Pass
-	// ?push=true to commit AND push it to GitHub for teammates.
+	// Portable compact memory bundle (.cortex/memory.json + README.md).
+	// Pass ?push=true to commit/push; add ?full=true to include raw memories.
 	se.Router.POST("/api/cortex/export/{project}", s.handleExportMemory)
 
 	// Session digests (compressed agent-session summaries).
@@ -83,6 +84,32 @@ func (s *Service) handleSystemPrompt(e *core.RequestEvent) error {
 		opts = PromptOptions{IncludeTasks: true, IncludeVault: true}
 	}
 	res, err := s.GenerateSystemPrompt(e.Request.Context(), user, projectID, opts)
+	if err != nil {
+		return e.InternalServerError(err.Error(), nil)
+	}
+	return e.JSON(200, res)
+}
+
+func (s *Service) handleGetSystemPrompt(e *core.RequestEvent) error {
+	res, err := s.GetSystemPrompt(e.Request.PathValue("project"))
+	if err != nil {
+		return e.NotFoundError("project not found", err)
+	}
+	return e.JSON(200, res)
+}
+
+func (s *Service) handleSaveSystemPrompt(e *core.RequestEvent) error {
+	user, err := s.resolveUser(e)
+	if err != nil {
+		return e.BadRequestError(err.Error(), nil)
+	}
+	var body struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := e.BindBody(&body); err != nil {
+		return e.BadRequestError("invalid prompt body", err)
+	}
+	res, err := s.SaveSystemPrompt(user, e.Request.PathValue("project"), body.Prompt)
 	if err != nil {
 		return e.InternalServerError(err.Error(), nil)
 	}

@@ -403,9 +403,10 @@ export async function listNotifications(limit = 20): Promise<Notification[]> {
 
 
 // File Index (for recently opened)
-export async function listRecentFiles(limit = 4): Promise<FileIndexEntry[]> {
+export async function listRecentFiles(limit = 4, projectId?: string): Promise<FileIndexEntry[]> {
+  const filter = projectId ? `&filter=(project="${projectId}")` : '';
   const res = await pbFetch<PBListResult<FileIndexEntry>>(
-    `/api/collections/file_index/records?sort=-last_indexed&perPage=${limit}`
+    `/api/collections/file_index/records?sort=-last_indexed&perPage=${limit}${filter}`
   );
   return res.items;
 }
@@ -551,10 +552,32 @@ export async function getKnowledgeGraph(projectId: string): Promise<AnalysisGrap
   return cortexFetch<AnalysisGraph>(`/api/cortex/knowledge-graph/${projectId}`);
 }
 
+// ── GitHub repo import ─────────────────────────────────
+
+export interface GitHubSyncResult {
+  total: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  names: string[];
+}
+
+// Import the signed-in user's GitHub repositories as CORTEX projects. Runs
+// server-side using the access token the daemon stored on the user record
+// during OAuth login, so it doesn't depend on the OAuth `meta` reaching the
+// client, is fully paginated, and avoids browser CORS. Safe to call repeatedly
+// Existing projects are refreshed, while new repositories are imported.
+export async function syncGitHubRepos(): Promise<GitHubSyncResult> {
+  return cortexFetch<GitHubSyncResult>('/api/cortex/github/sync', {
+    method: 'POST',
+    body: '{}',
+  });
+}
+
 export interface SystemPromptResult {
   project_id: string;
   project_name: string;
-  provider: string; // mistral | ollama | heuristic
+  provider: string; // custom or cortex
   prompt: string;
   token_estimate: number;
 }
@@ -563,6 +586,7 @@ export interface PromptOptions {
   include_tasks?: boolean;
   include_vault?: boolean;
   include_activity?: boolean;
+  preview?: boolean;
 }
 
 // Generate a project-specific agent system prompt using the configured LLM.
@@ -576,6 +600,16 @@ export async function generateSystemPrompt(
   });
 }
 
+export async function getSystemPrompt(projectId: string): Promise<SystemPromptResult> {
+  return cortexFetch<SystemPromptResult>('/api/cortex/system-prompt/' + projectId);
+}
+
+export async function saveSystemPrompt(projectId: string, prompt: string): Promise<SystemPromptResult> {
+  return cortexFetch<SystemPromptResult>('/api/cortex/system-prompt/' + projectId, {
+    method: 'PUT',
+    body: JSON.stringify({ prompt }),
+  });
+}
 // ── Session digests ────────────────────────────────────
 
 export interface SessionDigest {
@@ -587,7 +621,7 @@ export interface SessionDigest {
   title: string;
   summary_md: string;
   digest_json: Record<string, any>;
-  provider: string; // mistral | ollama | heuristic
+  provider: string; // custom or cortex
   token_count: number;
   memory_count: number;
   created: string;
@@ -637,6 +671,9 @@ export interface CodeGraphStats {
   edges: number;
   internal_deps: number;
   external_deps: number;
+  orphans: number;
+  cycles: number;
+  max_degree: number;
 }
 
 export interface CodeGraphResult {
@@ -881,6 +918,7 @@ export interface KnowledgeGraphNode {
   label: string;
   count: number;
   color: string;
+  source?: 'memory' | 'code';
 }
 
 export function buildKnowledgeGraph(
@@ -920,7 +958,22 @@ export function buildKnowledgeGraph(
     label,
     count,
     color,
+    source: 'memory' as const,
   }));
+}
+
+export function buildCodeGraphKnowledgeGraph(graph: CodeGraphResult): KnowledgeGraphNode[] {
+  if (!graph.built) return [];
+  const s = graph.stats;
+  return [
+    { id: 'directories', label: 'Directories', count: s.dirs, color: '#64748B', source: 'code' },
+    { id: 'files', label: 'Files', count: s.files, color: '#3B82F6', source: 'code' },
+    { id: 'functions', label: 'Functions', count: s.functions, color: '#22C55E', source: 'code' },
+    { id: 'classes', label: 'Classes', count: s.classes, color: '#A855F7', source: 'code' },
+    { id: 'packages', label: 'Packages', count: s.packages, color: '#F59E0B', source: 'code' },
+    { id: 'internal-deps', label: 'Internal deps', count: s.internal_deps, color: '#E8326E', source: 'code' },
+    { id: 'external-deps', label: 'External deps', count: s.external_deps, color: '#06B6D4', source: 'code' },
+  ];
 }
 
 // Export the transport for future ConnectRPC client usage

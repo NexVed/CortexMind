@@ -38,6 +38,9 @@ import {
   resetAllData,
   getProjectBrainStats,
   getActiveAgents,
+  getSystemPrompt,
+  saveSystemPrompt,
+  syncGitHubRepos,
   type Task,
   type ProviderConfig,
 } from './client';
@@ -53,7 +56,7 @@ export const qk = {
   activity: (limit: number) => ['activity', limit] as const,
   notifications: (limit: number) => ['notifications', limit] as const,
   projectActivity: (projectId: string, limit: number) => ['projectActivity', projectId, limit] as const,
-  recentFiles: (limit: number) => ['recentFiles', limit] as const,
+  recentFiles: (limit: number, projectId = '') => ['recentFiles', limit, projectId] as const,
   daemonStatus: ['daemonStatus'] as const,
   providerConfig: ['providerConfig'] as const,
   mcpConnections: ['mcpConnections'] as const,
@@ -62,6 +65,7 @@ export const qk = {
   agentMemories: (projectId: string) => ['agentMemories', projectId] as const,
   brainStats: (projectId: string) => ['brainStats', projectId] as const,
   activeAgents: (projectId: string) => ['activeAgents', projectId] as const,
+  systemPrompt: (projectId: string) => ['systemPrompt', projectId] as const,
 };
 
 const invalidate = (client: QueryClient, key: readonly unknown[]) =>
@@ -70,7 +74,11 @@ const invalidate = (client: QueryClient, key: readonly unknown[]) =>
 // ── Queries ────────────────────────────────────────────
 
 export function useProjects() {
-  return useQuery(() => ({ queryKey: qk.projects, queryFn: listProjects }));
+  return useQuery(() => ({
+    queryKey: qk.projects,
+    queryFn: listProjects,
+    refetchInterval: 30_000,
+  }));
 }
 
 export function useProject(id: Accessor<string>) {
@@ -82,24 +90,39 @@ export function useProject(id: Accessor<string>) {
 }
 
 export function useTasks(params?: Accessor<{ projectId?: string; status?: string } | undefined>) {
-  return useQuery(() => ({
-    queryKey: qk.tasks(params?.()),
-    queryFn: () => listTasks(params?.()),
-  }));
+  return useQuery(() => {
+    const scope = params?.();
+    return {
+      queryKey: qk.tasks(scope),
+      queryFn: () => listTasks(scope),
+      enabled: params ? !!scope?.projectId : true,
+      refetchInterval: params ? 30_000 : undefined,
+    };
+  });
 }
 
 export function useHandoffs(params?: Accessor<{ projectId?: string } | undefined>) {
-  return useQuery(() => ({
-    queryKey: qk.handoffs(params?.()),
-    queryFn: () => listHandoffs(params?.()),
-  }));
+  return useQuery(() => {
+    const scope = params?.();
+    return {
+      queryKey: qk.handoffs(scope),
+      queryFn: () => listHandoffs(scope),
+      enabled: params ? !!scope?.projectId : true,
+      refetchInterval: params ? 30_000 : undefined,
+    };
+  });
 }
 
 export function useVaultEntries(params?: Accessor<{ projectId?: string; category?: string } | undefined>) {
-  return useQuery(() => ({
-    queryKey: qk.vaultEntries(params?.()),
-    queryFn: () => listVaultEntries(params?.()),
-  }));
+  return useQuery(() => {
+    const scope = params?.();
+    return {
+      queryKey: qk.vaultEntries(scope),
+      queryFn: () => listVaultEntries(scope),
+      enabled: params ? !!scope?.projectId : true,
+      refetchInterval: params ? 30_000 : undefined,
+    };
+  });
 }
 
 export function useActivity(limit = 5) {
@@ -115,11 +138,36 @@ export function useProjectActivity(projectId: Accessor<string>, limit = 10) {
     queryKey: qk.projectActivity(projectId(), limit),
     queryFn: () => (projectId() ? listProjectActivity(projectId(), limit) : Promise.resolve([])),
     enabled: !!projectId(),
+    refetchInterval: 30_000,
   }));
 }
 
-export function useRecentFiles(limit = 4) {
-  return useQuery(() => ({ queryKey: qk.recentFiles(limit), queryFn: () => listRecentFiles(limit) }));
+export function useRecentFiles(limit = 4, projectId?: Accessor<string>) {
+  return useQuery(() => {
+    const id = projectId?.() ?? '';
+    return {
+      queryKey: qk.recentFiles(limit, id),
+      queryFn: () => listRecentFiles(limit, id || undefined),
+      enabled: projectId ? !!id : true,
+      refetchInterval: projectId ? 30_000 : undefined,
+    };
+  });
+}
+
+export function useSystemPrompt(projectId: Accessor<string>) {
+  return useQuery(() => ({
+    queryKey: qk.systemPrompt(projectId()),
+    queryFn: () => getSystemPrompt(projectId()),
+    enabled: !!projectId(),
+  }));
+}
+
+export function useSaveSystemPrompt() {
+  return useMutation(() => ({
+    mutationFn: (vars: { projectId: string; prompt: string }) =>
+      saveSystemPrompt(vars.projectId, vars.prompt),
+    onSuccess: (_res, vars) => invalidate(queryClient, qk.systemPrompt(vars.projectId)),
+  }));
 }
 
 export function useDaemonStatus() {
@@ -151,6 +199,7 @@ export function useCodeGraph(projectId: Accessor<string>) {
     queryKey: qk.codeGraph(projectId()),
     queryFn: () => getCodeGraph(projectId()),
     enabled: !!projectId(),
+    refetchInterval: 30_000,
   }));
 }
 
@@ -167,6 +216,7 @@ export function useProjectBrainStats(projectId: Accessor<string>) {
     queryKey: qk.brainStats(projectId()),
     queryFn: () => (projectId() ? getProjectBrainStats(projectId()) : Promise.resolve(null)),
     enabled: !!projectId(),
+    refetchInterval: 30_000,
   }));
 }
 
@@ -174,6 +224,8 @@ export function useActiveAgents(projectId: Accessor<string>) {
   return useQuery(() => ({
     queryKey: qk.activeAgents(projectId()),
     queryFn: () => getActiveAgents(projectId() || undefined),
+    enabled: !!projectId(),
+    refetchInterval: 30_000,
   }));
 }
 
@@ -186,6 +238,13 @@ export function useCreateProject() {
   }));
 }
 
+export function useSyncGitHubRepos() {
+  return useMutation(() => ({
+    mutationFn: syncGitHubRepos,
+    onSuccess: () => invalidate(queryClient, qk.projects),
+  }));
+}
+
 export function useScanProject() {
   return useMutation(() => ({
     mutationFn: (projectId: string) => scanProject(projectId),
@@ -193,6 +252,13 @@ export function useScanProject() {
       invalidate(queryClient, qk.projects);
       invalidate(queryClient, qk.project(projectId));
       invalidate(queryClient, qk.codeGraph(projectId));
+      invalidate(queryClient, ['tasks']);
+      invalidate(queryClient, ['handoffs']);
+      invalidate(queryClient, ['vaultEntries']);
+      invalidate(queryClient, ['recentFiles']);
+      invalidate(queryClient, ['brainStats']);
+      invalidate(queryClient, ['activeAgents']);
+      invalidate(queryClient, ['projectActivity']);
     },
   }));
 }

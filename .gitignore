@@ -16,6 +16,14 @@ pb_data/
 ui/node_modules/
 ui/dist/
 
+# Windows build artifacts
+cmd/cortexd/resource.syso
+cmd/cortexmind/resource_windows_amd64.syso
+build/windows/icon.ico
+build/dist/
+internal/web/dist/*
+!internal/web/dist/.gitkeep
+
 # Temp / smoke-test scratch files
 _*.json
 

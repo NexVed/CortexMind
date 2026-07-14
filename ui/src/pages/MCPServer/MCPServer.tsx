@@ -38,6 +38,7 @@ import {
   type PlatformIntegration,
 } from './integrations';
 import './MCPServer.css';
+import { selectedProjectId } from '../../api/projectSelection';
 
 const availableTools = [
   {
@@ -157,7 +158,7 @@ export const MCPServerPage: Component = () => {
   onCleanup(() => clearInterval(timer));
 
   const [showForm, setShowForm] = createSignal(false);
-  const [formProject, setFormProject] = createSignal('');
+  const [formProject, setFormProject] = createSignal(selectedProjectId());
   const [formPlatform, setFormPlatform] = createSignal('cursor');
   const [formLabel, setFormLabel] = createSignal('');
   const [creating, setCreating] = createSignal(false);
@@ -173,6 +174,7 @@ export const MCPServerPage: Component = () => {
     setCreated(null);
     setError('');
     setFormLabel('');
+    setFormProject(selectedProjectId());
     setShowForm(true);
   };
 

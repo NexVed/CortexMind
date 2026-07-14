@@ -10,13 +10,22 @@ import {
   MoreVertical,
   ChevronRight,
 } from 'lucide-solid';
-import { useHandoffs, useCreateHandoff } from '../../api/queries';
+import { useProjects, useHandoffs, useCreateHandoff } from '../../api/queries';
 import { Modal } from '../../components/Modal/Modal';
+import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
+import { createPersistedSignal } from '../../api/persistedState';
 import './Handoffs.css';
 
 export const HandoffsPage: Component = () => {
-  const [searchQuery, setSearchQuery] = createSignal('');
-  const handoffsQuery = useHandoffs();
+  const [searchQuery, setSearchQuery] = createPersistedSignal('handoffs.search', '');
+
+  const projectsQuery = useProjects();
+  const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(undefined, projects);
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
+  const handoffsQuery = useHandoffs(() => ({ projectId: selectedProject() }));
   const handoffs = () => handoffsQuery.data;
   const createHandoffM = useCreateHandoff();
 
@@ -51,6 +60,7 @@ export const HandoffsPage: Component = () => {
         from_agent: fFrom().trim(),
         to_agent: fTo().trim(),
         context: fContext().trim(),
+        project: selectedProject(),
       });
       setShowCreate(false);
     } catch (err: any) {
@@ -94,6 +104,12 @@ export const HandoffsPage: Component = () => {
       </div>
 
       <div class="handoffs-toolbar">
+        <ProjectSelect
+          projects={projects() || []}
+          selectedId={selectedProject()}
+          onChange={setSelectedProject}
+          placeholder="Choose a project…"
+        />
         <div class="search-box">
           <Search size={16} class="search-icon" />
           <input

@@ -1,4 +1,5 @@
 import { Component, For, createSignal, createEffect, Show } from 'solid-js';
+import { createPersistedSignal } from '../../api/persistedState';
 import { Settings, Palette, FolderGit2, BrainCircuit, Server, GitBranch, Keyboard, Info, Trash2, Plus, Plug } from 'lucide-solid';
 import { type ProviderConfig, type MCPConnection } from '../../api/client';
 import {
@@ -65,7 +66,7 @@ const shortcuts = [
 
 export const SettingsPage: Component = () => {
   const { logout } = useAuth();
-  const [activeCategory, setActiveCategory] = createSignal('general');
+  const [activeCategory, setActiveCategory] = createPersistedSignal('settings.active-category', 'general');
 
   // Preferences are backed by the shared, persisted settings store.
   const toggle = (label: string) => setToggle(label);

@@ -11,12 +11,12 @@ import (
 	"github.com/NexVed/Cortex/internal/analyzer"
 	"github.com/NexVed/Cortex/internal/auth"
 	"github.com/NexVed/Cortex/internal/config"
+	"github.com/NexVed/Cortex/internal/db"
 	cgit "github.com/NexVed/Cortex/internal/git"
 	"github.com/NexVed/Cortex/internal/llm"
 	"github.com/NexVed/Cortex/internal/memory"
 	"github.com/NexVed/Cortex/internal/scanner"
 	"github.com/NexVed/Cortex/internal/vector"
-	"github.com/NexVed/Cortex/internal/db"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/types"
 	"github.com/rs/zerolog/log"
@@ -177,6 +177,11 @@ func (s *Service) runFullScan(ctx context.Context, user *core.Record, project *c
 
 	if err := s.persistAnalysis(ctx, user, project, repoPath, analysis, embedder); err != nil {
 		log.Warn().Err(err).Str("project", project.Id).Msg("failed to persist analysis")
+	}
+	// Keep the code graph in sync with every successful scan so graph consumers
+	// never depend on a separate manual rebuild step.
+	if _, err := s.BuildAndStoreCodeGraph(ctx, user, project.Id); err != nil {
+		log.Warn().Err(err).Str("project", project.Id).Msg("failed to rebuild code graph")
 	}
 	return nil
 }

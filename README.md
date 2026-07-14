@@ -102,7 +102,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 | Language           | Go 1.25+ |
 | App framework / DB | PocketBase (embedded SQLite, auth, REST, router) |
 | RPC                | ConnectRPC (`connectrpc.com/connect`) |
-| Config             | Viper (`cortex.yaml` + `CortexMind_*` env vars) |
+| Config             | Viper (`cortex.yaml` + `CORTEX_*` env vars) |
 | Logging            | Zerolog |
 | Git                | go-git (clone, commit, pull) |
 | File watching      | fsnotify |
@@ -334,7 +334,7 @@ npm run build        # tsc --noEmit + vite build → outputs static assets to ui
 ## Configuration
 
 Configuration is read from `cortex.yaml` (searched in `.`, `.cortex/`, and `~/.cortex/`) and
-overridden by `CortexMind_*` environment variables. Missing config falls back to sensible defaults.
+overridden by `CORTEX_*` environment variables. Missing config falls back to sensible defaults.
 
 ```yaml
 server:
@@ -365,10 +365,10 @@ log_level: info
 ### Secrets / environment variables
 | Variable | Purpose |
 |----------|---------|
-| `CortexMind_GITHUB_CLIENT_ID`     | GitHub OAuth client id |
-| `CortexMind_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
-| `CortexMind_OLLAMA_URL`           | Override Ollama URL |
-| `CortexMind_DATA_DIR`             | Override data directory |
+| `CORTEX_GITHUB_CLIENT_ID`     | GitHub OAuth client id |
+| `CORTEX_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
+| `CORTEX_OLLAMA_URL`           | Override Ollama URL |
+| `CORTEX_DATA_DIR`             | Override data directory |
 
 > GitHub OAuth is enabled/configured in the PocketBase admin UI (`/_/` → Settings → Auth providers).
 > **LLM provider keys (Mistral) and embedding settings are configured per-user in the UI** under
@@ -393,6 +393,39 @@ log_level: info
    `cortex_save_memory` to record progress/decisions, and `cortex_summarize_session` at the end to
    hand off. Next session — in any tool — picks up where you left off.
 
+For repository sharing, use the compact export by default. It commits durable vault entries and
+session digests while keeping raw per-session agent memories in local storage. Add `?full=true` only
+when a complete raw-memory archive is required; add `?push=true` when it should be pushed to GitHub.
+
+### MCP Call Efficiency
+
+For normal session startup, prefer `cortex_get_session_digests` before loading the full context.
+Session digests are compact summaries of previous work and typically use far fewer model tokens than
+`cortex_get_context`. Use the full context call when the agent needs the complete project
+characterization, custom system prompt, recent memories, and architectural notes.
+
+The following local loopback benchmark was measured on 2026-07-14 using three samples per read
+operation. These are server round-trip measurements and exclude model generation time:
+
+| MCP call | Average latency | Approx. response tokens |
+|----------|-----------------|-------------------------|
+| `cortex_get_context` | 2.96 ms | 585 |
+| `cortex_get_session_digests` | 1.69 ms | 130 |
+| `cortex_list_memories` | 1.24 ms | 149 |
+| `cortex_code_map` | 5.77 ms | 320 |
+| `cortex_save_memory` | 7.04 ms | Small acknowledgement |
+| `cortex_summarize_session` | 5.98 ms | About 218 in this session |
+
+In the same benchmark, the digest used about 78% fewer tokens than the full context. After adding
+another memory, the measured responses were about 724 tokens for full context versus 223 tokens for
+the digest, a 69% reduction. Token counts are approximate and vary with the project's prompt and
+memory size.
+
+Keep saved memories concise and information-dense. Call `cortex_save_memory` during meaningful
+progress or decisions, then call `cortex_summarize_session` once at the end of the session. The
+full context response can grow because it includes the custom system prompt, up to 3 recent digests,
+up to 30 memories, and up to 10 architectural notes.
+
 ---
 
 ## HTTP & MCP API
@@ -407,7 +440,7 @@ log_level: info
 | `GET/POST /api/cortex/code-graph/{project}` | Fetch / build the codebase-memory graph |
 | `POST /api/cortex/session-digest/{project}` | Compress a session's memories into a digest |
 | `GET /api/cortex/session-digests/{project}` | List stored session digests |
-| `POST /api/cortex/export/{project}` | Export a portable `.cortex/memory.json` bundle (`?push=true` to commit + push) |
+| `POST /api/cortex/export/{project}` | Export a compact `.cortex/memory.json` bundle; use `?push=true` to push or `?full=true` to include raw memories |
 | `GET /api/cortex/github/repos` | List the signed-in user's GitHub repos (paginated) |
 | `POST /api/cortex/github/sync` | Import/sync GitHub repos as projects |
 | `GET/POST /api/cortex/mcp/connections` | List / create MCP connections |

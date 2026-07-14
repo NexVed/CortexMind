@@ -56,6 +56,10 @@ func (s *Scanner) Run(job Job) (*Result, error) {
 
 	res := &Result{Languages: map[string]int{}, Dependencies: map[string]any{}, EntryPoints: []string{}}
 	maxBytes := int64(s.Config.MaxFileSizeKB) * 1024
+	fileColl, err := s.App.FindCollectionByNameOrId(db.CollFileIndex)
+	if err != nil {
+		return nil, fmt.Errorf("file index collection: %w", err)
+	}
 
 	walkErr := filepath.Walk(job.RepoPath, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -80,7 +84,7 @@ func (s *Scanner) Run(job Job) (*Result, error) {
 		rel, _ := filepath.Rel(job.RepoPath, path)
 		rel = filepath.ToSlash(rel)
 
-		if err := s.indexFile(job, path, rel, lang, fi.Size()); err != nil {
+		if err := s.indexFile(job, fileColl, path, rel, lang, fi.Size()); err != nil {
 			log.Warn().Err(err).Str("file", rel).Msg("failed to index file")
 			return nil
 		}
@@ -110,18 +114,13 @@ func (s *Scanner) Run(job Job) (*Result, error) {
 	return res, nil
 }
 
-func (s *Scanner) indexFile(job Job, absPath, rel, lang string, size int64) error {
+func (s *Scanner) indexFile(job Job, coll *core.Collection, absPath, rel, lang string, size int64) error {
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return err
 	}
 	sum := sha256.Sum256(data)
 	checksum := hex.EncodeToString(sum[:])
-
-	coll, err := s.App.FindCollectionByNameOrId(db.CollFileIndex)
-	if err != nil {
-		return err
-	}
 
 	// Upsert: reuse the existing record (skip if unchanged) or create new.
 	existing, _ := s.App.FindFirstRecordByFilter(db.CollFileIndex,

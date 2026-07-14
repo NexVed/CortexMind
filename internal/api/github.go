@@ -28,6 +28,7 @@ type GitHubRepo struct {
 type SyncResult struct {
 	Total    int      `json:"total"`
 	Imported int      `json:"imported"`
+	Updated  int      `json:"updated"`
 	Skipped  int      `json:"skipped"`
 	Names    []string `json:"names"`
 }
@@ -46,10 +47,14 @@ func (s *Service) ListGitHubRepos(user *core.Record) ([]GitHubRepo, error) {
 	}
 
 	// Mark repos that already exist as projects.
-	existing := map[string]bool{}
-	if recs, err := s.App.FindRecordsByFilter(db.CollProjects, "github_url != ''", "", 5000, 0, nil); err == nil {
+	existingURLs := map[string]bool{}
+	existingIDs := map[string]bool{}
+	if recs, err := s.App.FindRecordsByFilter(db.CollProjects,
+		"owner = {:owner} && github_url != '' && github_repo_id != ''", "", 5000, 0,
+		map[string]any{"owner": user.Id}); err == nil {
 		for _, r := range recs {
-			existing[r.GetString("github_url")] = true
+			existingURLs[r.GetString("github_url")] = true
+			existingIDs[r.GetString("github_repo_id")] = true
 		}
 	}
 
@@ -64,7 +69,7 @@ func (s *Service) ListGitHubRepos(user *core.Record) ([]GitHubRepo, error) {
 			HTMLURL:     r.HTMLURL,
 			CloneURL:    r.CloneURL,
 			Language:    r.Language,
-			Imported:    existing[r.HTMLURL],
+			Imported:    existingURLs[r.HTMLURL] || existingIDs[fmt.Sprintf("%d", r.ID)],
 		})
 	}
 	return out, nil
@@ -87,15 +92,43 @@ func (s *Service) SyncGitHubRepos(user *core.Record) (*SyncResult, error) {
 
 	res := &SyncResult{Total: len(repos)}
 	for _, repo := range repos {
-		if repo.Imported {
-			res.Skipped++
-			continue
-		}
-		// Guard against a race / duplicate github_url.
+		// Match by URL or stable GitHub ID so renames update the existing project.
 		if existing, _ := s.App.FindFirstRecordByFilter(db.CollProjects,
-			"github_url = {:u} || github_repo_id = {:id}",
-			map[string]any{"u": repo.HTMLURL, "id": fmt.Sprintf("%d", repo.ID)}); existing != nil {
-			res.Skipped++
+			"owner = {:owner} && (github_url = {:u} || github_repo_id = {:id})",
+			map[string]any{"owner": user.Id, "u": repo.HTMLURL, "id": fmt.Sprintf("%d", repo.ID)}); existing != nil {
+			changed := false
+			if existing.GetString("name") != repo.Name {
+				existing.Set("name", repo.Name)
+				changed = true
+			}
+			description := firstNonEmpty(repo.Description, "Imported from GitHub")
+			if existing.GetString("description") != description {
+				existing.Set("description", description)
+				changed = true
+			}
+			if existing.GetString("github_url") != repo.HTMLURL {
+				existing.Set("github_url", repo.HTMLURL)
+				changed = true
+			}
+			repoID := fmt.Sprintf("%d", repo.ID)
+			if existing.GetString("github_repo_id") != repoID {
+				existing.Set("github_repo_id", repoID)
+				changed = true
+			}
+			if existing.GetString("status") == "archived" {
+				existing.Set("status", "active")
+				changed = true
+			}
+			if changed {
+				if err := s.App.Save(existing); err != nil {
+					log.Warn().Err(err).Str("repo", repo.FullName).Msg("failed to update synced repo")
+					res.Skipped++
+					continue
+				}
+				res.Updated++
+			} else {
+				res.Skipped++
+			}
 			continue
 		}
 
@@ -120,8 +153,26 @@ func (s *Service) SyncGitHubRepos(user *core.Record) (*SyncResult, error) {
 		res.Names = append(res.Names, repo.FullName)
 	}
 
+	// Archive any previously synced GitHub projects that are no longer accessible.
+	activeURLs := make(map[string]bool)
+	for _, repo := range repos {
+		activeURLs[repo.HTMLURL] = true
+	}
+
+	if existing, err := s.App.FindRecordsByFilter(db.CollProjects,
+		"owner = {:owner} && github_url != '' && github_repo_id != ''",
+		"", 5000, 0, map[string]any{"owner": user.Id}); err == nil {
+		for _, p := range existing {
+			u := p.GetString("github_url")
+			if u != "" && !activeURLs[u] && p.GetString("status") != "archived" {
+				p.Set("status", "archived")
+				_ = s.App.Save(p)
+			}
+		}
+	}
+
 	db.LogActivity(s.App, "", user.Id, "synced_github_repos",
-		fmt.Sprintf("Imported %d of %d repositories from GitHub", res.Imported, res.Total), nil)
+		fmt.Sprintf("Imported %d, updated %d of %d repositories from GitHub", res.Imported, res.Updated, res.Total), nil)
 	return res, nil
 }
 

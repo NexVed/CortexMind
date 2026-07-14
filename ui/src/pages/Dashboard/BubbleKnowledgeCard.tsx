@@ -4,6 +4,7 @@ import type { KnowledgeGraphNode } from '../../api/client';
 
 interface Props {
   nodes: KnowledgeGraphNode[];
+  source?: string;
 }
 
 interface BubbleData {
@@ -57,6 +58,7 @@ export const BubbleKnowledgeCard: Component<Props> = (props) => {
     <div class="dash-bubble-card">
       <div class="dash-card-header">
         <span class="dash-card-title">Bubble Knowledge</span>
+        <span class="dash-card-source">{props.source || 'Project memory'}</span>
         <span
           class="dash-card-link"
           style={{ cursor: 'pointer' }}

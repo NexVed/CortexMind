@@ -15,6 +15,7 @@ import (
 	"github.com/NexVed/Cortex/internal/search"
 	"github.com/NexVed/Cortex/internal/vector"
 	"github.com/NexVed/Cortex/internal/watcher"
+	"github.com/NexVed/Cortex/internal/web"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -116,6 +117,16 @@ func (d *Daemon) mountRPC(se *core.ServeEvent) {
 	mcpServer := mcp.New(d.App)
 	se.Router.Any("/mcp", apis.WrapStdHandler(mcpServer.Handler()))
 	log.Info().Msg("mounted MCP endpoint at /mcp")
+
+	// Serve the embedded SolidJS UI (SPA) for all remaining routes. Registered
+	// last, and as a catch-all, so PocketBase's own /api, /_/ and the routes
+	// above keep priority; unmatched paths fall back to index.html.
+	if web.Available() {
+		se.Router.Any("/{path...}", apis.Static(web.FS(), true))
+		log.Info().Msg("mounted embedded UI at /")
+	} else {
+		log.Warn().Msg("no embedded UI found (run the UI build); serving API only")
+	}
 }
 
 func (d *Daemon) startWatcher() {
@@ -125,18 +136,21 @@ func (d *Daemon) startWatcher() {
 		return
 	}
 	d.Watcher = w
-
-	projects, err := d.App.FindRecordsByFilter(db.CollProjects, "path != ''", "", 500, 0, nil)
-	if err != nil {
-		log.Warn().Err(err).Msg("could not list projects for watching")
-	}
-	for _, p := range projects {
-		path := p.GetString("path")
-		if err := w.Add(p.Id, p.GetString("owner"), path); err != nil {
-			log.Warn().Err(err).Str("path", path).Msg("failed to watch project")
-		}
-	}
-
-	go w.Start()
 	d.watcherRunning = true
+
+	go func() {
+		projects, err := d.App.FindRecordsByFilter(db.CollProjects, "path != ''", "", 500, 0, nil)
+		if err != nil {
+			log.Warn().Err(err).Msg("could not list projects for watching")
+			return
+		}
+		for _, p := range projects {
+			path := p.GetString("path")
+			log.Info().Str("path", path).Msg("registering watcher for project path")
+			if err := w.Add(p.Id, p.GetString("owner"), path); err != nil {
+				log.Warn().Err(err).Str("path", path).Msg("failed to watch project")
+			}
+		}
+		w.Start()
+	}()
 }

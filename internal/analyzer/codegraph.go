@@ -1,6 +1,7 @@
 package analyzer
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -37,6 +38,9 @@ type CodeGraphStats struct {
 	Edges        int `json:"edges"`
 	InternalDeps int `json:"internal_deps"` // file->file / file->dir dependencies
 	ExternalDeps int `json:"external_deps"` // file->external package edges
+	Orphans      int `json:"orphans"`       // nodes with no relationships
+	Cycles       int `json:"cycles"`        // dependency back-edges
+	MaxDegree    int `json:"max_degree"`    // highest node connectivity
 }
 
 // CodeGraph is the full codebase memory graph for a project.
@@ -108,13 +112,13 @@ func BuildCodeGraph(files []FileEntry) CodeGraph {
 
 		// Defined symbols.
 		for _, fn := range f.Functions {
-			id := "fn:" + fp + "#" + fn.Name
+			id := fmt.Sprintf("fn:%s#%s@%d", fp, fn.Name, fn.Line)
 			b.addNode(CodeNode{ID: id, Label: fn.Name, Type: "function", Path: fp, Line: fn.Line, Public: fn.Public})
 			b.addEdge(fileID, id, "defines")
 			b.stats.Functions++
 		}
 		for _, cl := range f.Classes {
-			id := "cls:" + fp + "#" + cl.Name
+			id := fmt.Sprintf("cls:%s#%s@%d", fp, cl.Name, cl.Line)
 			b.addNode(CodeNode{ID: id, Label: cl.Name, Type: "class", Path: fp, Line: cl.Line, Public: cl.Public})
 			b.addEdge(fileID, id, "defines")
 			b.stats.Classes++
@@ -145,8 +149,9 @@ func BuildCodeGraph(files []FileEntry) CodeGraph {
 				continue
 			}
 			// External package.
-			pkgID := "pkg:" + imp
-			b.addNode(CodeNode{ID: pkgID, Label: packageLabel(imp), Type: "package"})
+			pkg := externalPackageKey(imp, f.Language)
+			pkgID := "pkg:" + pkg
+			b.addNode(CodeNode{ID: pkgID, Label: packageLabel(pkg), Type: "package"})
 			if b.addEdge(fileID, pkgID, "imports") {
 				b.stats.ExternalDeps++
 			}
@@ -154,6 +159,7 @@ func BuildCodeGraph(files []FileEntry) CodeGraph {
 	}
 
 	b.computeDegrees()
+	b.stats.Cycles = b.countDependencyCycles()
 	b.stats.Edges = len(b.edges)
 	for _, n := range b.nodes {
 		switch n.Type {
@@ -224,7 +230,43 @@ func (b *cgBuilder) computeDegrees() {
 	}
 	for i := range b.nodes {
 		b.nodes[i].Degree = deg[b.nodes[i].ID]
+		if b.nodes[i].Degree == 0 {
+			b.stats.Orphans++
+		}
+		if b.nodes[i].Degree > b.stats.MaxDegree {
+			b.stats.MaxDegree = b.nodes[i].Degree
+		}
 	}
+}
+
+func (b *cgBuilder) countDependencyCycles() int {
+	adj := map[string][]string{}
+	for _, e := range b.edges {
+		if e.Rel == "depends_on" {
+			adj[e.Source] = append(adj[e.Source], e.Target)
+		}
+	}
+	color := map[string]uint8{}
+	cycles := 0
+	var visit func(string)
+	visit = func(id string) {
+		color[id] = 1
+		for _, next := range adj[id] {
+			switch color[next] {
+			case 1:
+				cycles++
+			case 0:
+				visit(next)
+			}
+		}
+		color[id] = 2
+	}
+	for id := range adj {
+		if color[id] == 0 {
+			visit(id)
+		}
+	}
+	return cycles
 }
 
 // ── import resolution helpers ──────────────────────────
@@ -263,6 +305,26 @@ func matchInternalDir(imp string, dirSet map[string]bool) (string, bool) {
 }
 
 // packageLabel shortens a long import path for display (keeps last 2 segments).
+func externalPackageKey(imp, language string) string {
+	imp = strings.Trim(imp, "/")
+	parts := strings.Split(imp, "/")
+	if len(parts) == 0 {
+		return imp
+	}
+	switch language {
+	case "TypeScript", "JavaScript":
+		if strings.HasPrefix(imp, "@") && len(parts) >= 2 {
+			return strings.Join(parts[:2], "/")
+		}
+		return parts[0]
+	case "Go":
+		if len(parts) >= 3 && (parts[0] == "github.com" || parts[0] == "gitlab.com") {
+			return strings.Join(parts[:3], "/")
+		}
+	}
+	return parts[0]
+}
+
 func packageLabel(imp string) string {
 	imp = strings.Trim(imp, "/")
 	parts := strings.Split(imp, "/")

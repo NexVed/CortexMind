@@ -15,19 +15,21 @@ import { type AgentMemory } from '../../api/client';
 import { useProjects, useAgentMemories } from '../../api/queries';
 import { ForceGraph, type FGNode, type FGEdge } from '../../components/ForceGraph/ForceGraph';
 import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
+import { createProjectSelection } from '../../api/projectSelection';
+import { createPersistedSignal } from '../../api/persistedState';
 import './AgentMemory.css';
 
 // Category colors for individual memory nodes.
 const CATEGORY_COLORS: Record<string, string> = {
-  context: '#3B82F6',
-  progress: '#22C55E',
-  decision: '#A855F7',
-  note: '#64748B',
+  context: '#6C63FF',
+  progress: '#3DCB6C',
+  decision: '#E8326E',
+  note: '#718096',
   handoff: '#F59E0B',
 };
 
 const PROJECT_COLOR = '#E8326E';
-const SESSION_COLOR = '#0EA5E9';
+const SESSION_COLOR = '#06B6D4';
 
 // Known agent brand colors (matched loosely by name).
 const AGENT_BRANDS: Record<string, string> = {
@@ -101,15 +103,19 @@ function firstLine(s: string): string {
 }
 
 export const AgentMemoryPage: Component = () => {
-  const [searchParams] = useSearchParams();
-  const [selectedProject, setSelectedProject] = createSignal<string>(
-    typeof searchParams.project === 'string' ? searchParams.project : ''
-  );
-  const [agentFilter, setAgentFilter] = createSignal<string>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [agentFilter, setAgentFilter] = createPersistedSignal<string>('agent-memory.agent-filter', 'all');
+  const [showMemoryNodes, setShowMemoryNodes] = createPersistedSignal('agent-memory.show-memory-nodes', false);
   const [selectedNode, setSelectedNode] = createSignal<MemNode | null>(null);
 
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
+  const projectSelection = createProjectSelection(
+    () => typeof searchParams.project === 'string' ? searchParams.project : undefined,
+    projects,
+  );
+  const selectedProject = projectSelection.selected;
+  const setSelectedProject = projectSelection.select;
   const memoriesQuery = useAgentMemories(selectedProject);
   const memories = () => memoriesQuery.data;
   const refetch = () => memoriesQuery.refetch();
@@ -144,6 +150,14 @@ export const AgentMemoryPage: Component = () => {
     const byId = new Map<string, MemNode>();
     const mems = filtered();
     if (mems.length === 0) return { nodes, edges, byId };
+    const visibleMemoryIds = new Set(
+      showMemoryNodes()
+        ? [...mems]
+            .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+            .slice(0, 240)
+            .map((m) => m.id)
+        : [],
+    );
 
     const add = (data: MemNode, radius: number, labelAlways = false) => {
       nodes.push({ id: data.id, label: data.label, color: data.color, radius, labelAlways });
@@ -190,6 +204,7 @@ export const AgentMemoryPage: Component = () => {
         edges.push({ source: aId, target: sId });
 
         for (const m of list) {
+          if (!visibleMemoryIds.has(m.id)) continue;
           const mId = `mem:${m.id}`;
           add(
             {
@@ -249,6 +264,7 @@ export const AgentMemoryPage: Component = () => {
               selectedId={selectedProject()}
               onChange={(id) => {
                 setSelectedProject(id);
+                setSearchParams({ project: id }, { replace: true });
                 setSelectedNode(null);
                 setAgentFilter('all');
               }}
@@ -256,6 +272,17 @@ export const AgentMemoryPage: Component = () => {
             />
 
             <Show when={agents().length > 0}>
+              <label class="am-view-toggle">
+                <input
+                  type="checkbox"
+                  checked={showMemoryNodes()}
+                  onChange={(e) => {
+                    setShowMemoryNodes(e.currentTarget.checked);
+                    setSelectedNode(null);
+                  }}
+                />
+                Show memory details
+              </label>
               <div class="custom-select">
                 <select
                   value={agentFilter()}

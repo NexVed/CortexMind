@@ -190,11 +190,23 @@
   background: var(--border);
 }
 
-.generate-btn {
-  width: 100%;
-  padding: 14px;
-  font-size: 15px;
-  border-radius: var(--r-md);
+.config-help {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.save-btn,
+
+.prompt-saved {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .generate-btn.generating {
@@ -255,12 +267,30 @@
 
 .preview-editor {
   flex: 1;
+  display: flex;
   padding: var(--s5);
   overflow-y: auto;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
   color: #D4D4D8;
+}
+
+.prompt-textarea {
+  width: 100%;
+  min-height: 360px;
+  height: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: #D4D4D8;
+  font: inherit;
+  line-height: inherit;
+}
+
+.prompt-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.42);
 }
 
 .preview-lines {

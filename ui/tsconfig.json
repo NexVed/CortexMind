@@ -2,6 +2,8 @@
   "compilerOptions": {
     "strict": true,
     "noEmit": true,
+    "skipLibCheck": true,
+    "incremental": true,
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "node",
