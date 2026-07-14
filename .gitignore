@@ -13,7 +13,7 @@ pb_data/
 *.local
 
 # Node
-ui/node_modules/
+node_modules/
 ui/dist/
 
 # Windows build artifacts
