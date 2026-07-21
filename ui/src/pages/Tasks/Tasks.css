@@ -47,3 +47,29 @@
   align-items: center;
   gap: 8px;
 }
+/* Workspace redesign */
+.tasks-page {
+  min-height: 100%; padding: 32px 40px 48px; background: transparent;
+}
+.tasks-page .page-header, .handoffs-page .page-header, .projects-page .page-header { margin-bottom: 10px; }
+.tasks-page .page-title, .handoffs-page .page-title, .projects-page .page-title { letter-spacing: -.035em; font-size: 28px; }
+.tasks-page .page-subtitle, .handoffs-page .page-subtitle, .projects-page .page-subtitle { margin-top: 5px; }
+.tasks-page .page-title-icon { box-shadow: 0 12px 24px rgba(45,102,255,.18); }
+.tasks-toolbar { align-items: center; margin: 18px 0 20px; padding: 10px; gap: 10px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 10px 30px rgba(31,35,44,.035); }
+.tasks-toolbar > :first-child { min-width: 320px; flex: 1; }
+.tasks-toolbar .search-box { width: 250px; padding: 0 12px; height: 42px; border: 1px solid var(--border); border-radius: 11px; background: transparent; }
+.tasks-filters { display: flex; gap: 3px; align-items: center; padding: 3px; border-radius: 11px; background: var(--bg-elevated); }
+.tasks-filters .filter-btn { white-space: nowrap; }
+.tasks-list { gap: 10px; }
+.task-item { min-height: 76px; padding: 15px 18px; border-radius: 14px; border-color: var(--border); box-shadow: 0 2px 8px rgba(20,24,36,.025); transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.task-item:hover { transform: translateY(-1px); border-color: rgba(45,102,255,.28); box-shadow: 0 12px 28px rgba(20,24,36,.07); }
+.task-checkbox { width: 32px; height: 32px; display:grid; place-items:center; color: var(--text-muted); border-radius: 10px; }
+.task-title { font-size: 15px; font-weight: 650; }
+.task-meta { margin-top: 7px; gap: 12px; }
+.task-status { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+.tasks-page .empty-state { min-height: 360px; margin-top: 20px; padding: 48px; border: 1px dashed rgba(45,102,255,.3); border-radius: 20px; background: var(--bg-surface); }
+.empty-state-action { margin-top: 16px; display: inline-flex; gap: 8px; align-items: center; padding: 10px 14px; border: 0; border-radius: 10px; color: #fff; background: var(--primary-dark); font-weight: 650; cursor: pointer; }
+@media (max-width: 960px) { .tasks-page { padding: 24px; } .tasks-toolbar { flex-wrap: wrap; } .tasks-toolbar > :first-child { min-width: 100%; } .tasks-toolbar .search-box { flex: 1; } }
+
+
+

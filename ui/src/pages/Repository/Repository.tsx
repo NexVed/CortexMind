@@ -3,10 +3,28 @@ import { useParams } from '@solidjs/router';
 import {
   Github, Eye, GitFork, Star, ChevronDown, GitBranch, Tag, Search, Plus, Code, MoreHorizontal,
   Folder, FileText, FileCode2, GitCommit,
-  Sparkles, ScanSearch, Copy, MessageSquare, Network, FileKey, Layers, HardDrive, Clock, Scan
+  Sparkles, ScanSearch, Copy, Network, FileKey, Layers, HardDrive, Clock, Scan
 } from 'lucide-solid';
 import { useProject, useScanProject } from '../../api/queries';
+import { getRepositoryInsights } from '../../api/client';
 import './Repository.css';
+function rewriteReadmeImageSources(html: string, repositoryURL: string, branch?: string): string {
+  const match = repositoryURL.match(/github\.com\/([^/]+)\/([^/#]+)/);
+  if (!match) return html;
+  const owner = match[1];
+  const repo = match[2].replace(/\.git$/, '');
+  const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'HEAD'}/`;
+  return html.replace(/(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])/gi, (_all, before, source, after) => {
+    if (/^(https?:|data:|#)/i.test(source)) {
+      return before + source.replace(`https://github.com/${owner}/${repo}/blob/`, `https://raw.githubusercontent.com/${owner}/${repo}/`) + after;
+    }
+    try {
+      return before + new URL(source.replace(/^\.\//, ''), rawBase).href + after;
+    } catch {
+      return before + source + after;
+    }
+  });
+}
 
 export const RepositoryPage: Component = () => {
   const params = useParams();
@@ -15,7 +33,8 @@ export const RepositoryPage: Component = () => {
   const projectQuery = useProject(() => projectId);
   const project = () => projectQuery.data;
   const scanM = useScanProject();
-  const [isScanning, setIsScanning] = createSignal(false);
+  const [isScanning, setIsScanning] = createSignal(false);  const [insights] = createResource(() => projectId, async (id) => id ? getRepositoryInsights(id).catch(() => null) : null);
+  const formatSize = (bytes?: number) => { if (!bytes) return '—'; const units = ['B', 'KB', 'MB', 'GB']; let value = bytes; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; };
 
   const handleScan = async () => {
     if (!projectId) return;
@@ -94,7 +113,11 @@ export const RepositoryPage: Component = () => {
           }
         });
         if (!res.ok) return null;
-        return await res.text();
+        return rewriteReadmeImageSources(
+          await res.text(),
+          url,
+          repoInfo()?.repo?.default_branch || 'HEAD'
+        );
       } catch {
         return null;
       }
@@ -229,14 +252,7 @@ export const RepositoryPage: Component = () => {
               <button class="btn secondary w-full"><Copy size={14} /> Clone Repo</button>
             </div>
             
-            <div class="ai-card">
-              <div class="ai-card-icon-wrap bg-pink-light"><MessageSquare size={18} class="text-pink" /></div>
-              <div class="ai-card-content">
-                <h4>Chat with Repository</h4>
-                <p>Ask questions about your codebase, architecture, dependencies and more.</p>
-              </div>
-              <button class="btn primary-pink light w-full"><MessageSquare size={14} /> Start Chat</button>
-            </div>
+
           </div>
 
           <div class="sidebar-section">
@@ -244,18 +260,35 @@ export const RepositoryPage: Component = () => {
               <h3>Repository Insights</h3>
             </div>
             <div class="insights-list">
-              <div class="insight-row"><div class="insight-label"><FileCode2 size={14} /> Language</div><div class="insight-val font-medium">{project()?.technologies?.[0] || 'Unknown'}</div></div>
-              <div class="insight-row"><div class="insight-label"><HardDrive size={14} /> Size</div><div class="insight-val font-medium">Unknown</div></div>
-              <div class="insight-row"><div class="insight-label"><Layers size={14} /> Files</div><div class="insight-val font-medium">{repoFiles()?.length || 0}</div></div>
-              <div class="insight-row"><div class="insight-label"><Network size={14} /> Lines of Code</div><div class="insight-val font-medium">...</div></div>
-              <div class="insight-row"><div class="insight-label"><Clock size={14} /> Last Commit</div><div class="insight-val font-medium">...</div></div>
-              <div class="insight-row"><div class="insight-label"><FileKey size={14} /> License</div><div class="insight-val font-medium">MIT</div></div>
+              <div class="insight-row"><div class="insight-label"><FileCode2 size={14} /> Language</div><div class="insight-val font-medium">{insights()?.language || 'Loading…'}</div></div>
+              <div class="insight-row"><div class="insight-label"><HardDrive size={14} /> Size</div><div class="insight-val font-medium">{formatSize(insights()?.size_bytes)}</div></div>
+              <div class="insight-row"><div class="insight-label"><Layers size={14} /> Files</div><div class="insight-val font-medium">{insights()?.available ? insights()!.files : '—'}</div></div>
+              <div class="insight-row"><div class="insight-label"><Network size={14} /> Lines of Code</div><div class="insight-val font-medium">{insights()?.available ? insights()!.lines_of_code.toLocaleString() : '—'}</div></div>
+              <div class="insight-row"><div class="insight-label"><Clock size={14} /> Last Commit</div><div class="insight-val font-medium">{insights()?.last_commit || '—'}</div></div>
+              <div class="insight-row"><div class="insight-label"><FileKey size={14} /> License</div><div class="insight-val font-medium">{insights()?.license || 'Loading…'}</div></div>
             </div>
             <p class="insights-note">✨ AI insights are generated after scanning your repository.</p>
           </div>
+          <Show when={insights()?.available && insights()!.languages?.length}>
+            <div class="sidebar-section language-breakdown">
+              <div class="sidebar-header"><h3>Languages</h3></div>
+              <div class="language-stack">
+                <For each={insights()!.languages.slice(0, 6)}>{(language, index) => <span class={`language-segment language-${index()}`} style={{ width: `${language.percentage}%` }} />}</For>
+              </div>
+              <div class="language-legend">
+                <For each={insights()!.languages.slice(0, 6)}>{(language, index) => <div class="language-item"><span class={`language-dot language-${index()}`} /><strong>{language.name}</strong><span>{language.percentage.toFixed(1)}%</span></div>}</For>
+              </div>
+            </div>
+          </Show>
+          </div>
         </div>
-      </div>
       </Show>
     </div>
   );
 };
+
+
+
+
+
+

@@ -4,8 +4,8 @@
 
 .app-layout {
   display: flex;
-  height: calc(100vh - var(--titlebar-h, 0px));
-  margin-top: var(--titlebar-h, 0px);
+  height: 100vh;
+  margin-top: 0;
   width: 100vw;
   overflow: hidden;
   background: var(--bg-base);

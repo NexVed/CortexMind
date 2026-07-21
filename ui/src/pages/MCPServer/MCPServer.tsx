@@ -41,41 +41,12 @@ import './MCPServer.css';
 import { selectedProjectId } from '../../api/projectSelection';
 
 const availableTools = [
-  {
-    name: 'cortex_get_context',
-    desc: "Load the project's characterization (system prompt, tech stack, architecture) plus prior AI memory. Call this first.",
-    category: 'MEMORY',
-    icon: BrainCircuit,
-    colorClass: 'purple',
-  },
-  {
-    name: 'cortex_save_memory',
-    desc: 'Persist progress, a decision or a note so the next AI session in any IDE can recall it.',
-    category: 'MEMORY',
-    icon: Brain,
-    colorClass: 'blue',
-  },
-  {
-    name: 'cortex_list_memories',
-    desc: 'List stored memories for this project from all previous AI sessions and IDEs.',
-    category: 'MEMORY',
-    icon: BookOpen,
-    colorClass: 'indigo',
-  },
-  {
-    name: 'cortex_get_tasks',
-    desc: 'List the active (not done) tasks for this project.',
-    category: 'TASKS',
-    icon: Activity,
-    colorClass: 'pink',
-  },
-  {
-    name: 'cortex_summarize_session',
-    desc: 'Compress everything you did this session into a stored, token-efficient digest for the next agent.',
-    category: 'DIGEST',
-    icon: Shield,
-    colorClass: 'purple',
-  },
+  { name: 'cortex_get_context', desc: "Load the project's profile, graph statistics and recent AI memory. Call this first.", category: 'MEMORY', icon: BrainCircuit, colorClass: 'purple' },
+  { name: 'cortex_get_code_graph', desc: 'Query files, functions, classes, packages, and internal or external dependencies.', category: 'CODE GRAPH', icon: Box, colorClass: 'indigo' },
+  { name: 'cortex_save_memory', desc: 'Persist progress, decisions, notes, context or handoffs for the next AI session.', category: 'MEMORY', icon: Brain, colorClass: 'blue' },
+  { name: 'cortex_list_memories', desc: 'List stored memories for this project from all prior agent sessions.', category: 'MEMORY', icon: BookOpen, colorClass: 'indigo' },
+  { name: 'cortex_get_tasks', desc: 'List active project tasks; completed and cancelled tasks are excluded.', category: 'TASKS', icon: Activity, colorClass: 'pink' },
+  { name: 'cortex_summarize_session', desc: 'Store an agent-authored, token-efficient session digest for later sessions.', category: 'DIGEST', icon: Shield, colorClass: 'purple' },
 ];
 
 const GROUP_ORDER: IntegrationGroup[] = ['cli', 'web', 'ide'];

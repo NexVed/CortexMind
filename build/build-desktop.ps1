@@ -7,7 +7,7 @@
 #   4. compiles the Wails webview shell   -> build/dist/CortexMind.exe
 #   5. builds a per-user installer         -> build/dist/CortexMind-Setup-<ver>.exe
 #
-# The desktop app boots the same embedded PocketBase daemon as cortexd and opens
+# The desktop app boots the same embedded SQLite daemon as cortexd and opens
 # a native WebView2 window at http://127.0.0.1:<port> instead of a browser.
 #
 # Requirements: Go 1.25+, Node 18+, WebView2 runtime (preinstalled on Win 11).

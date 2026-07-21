@@ -1,21 +1,7 @@
-import { Component, createSignal, For, Show } from 'solid-js';
+import { Component, For, Show } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
-import {
-  LayoutDashboard,
-  FolderKanban,
-  BookOpen,
-  Bot,
-  Sparkles,
-  Search,
-  Settings,
-  Puzzle,
-  Layers,
-  Network,
-  Brain,
-  ChevronDown,
-} from 'lucide-solid';
+import { LayoutDashboard, FolderKanban, BookOpen, Bot, Settings, Puzzle, Layers, Network, Brain, Github, LogOut } from 'lucide-solid';
 import { useAuth } from '../../api/auth';
-import { useDaemonStatus } from '../../api/queries';
 import './Sidebar.css';
 
 const navItems: { id: string; path: string; label: string; icon: any; badge?: string }[] = [
@@ -34,77 +20,9 @@ export const Sidebar: Component = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const daemonStatusQuery = useDaemonStatus();
-  const daemonStatus = () => daemonStatusQuery.data;
-  const [showUserMenu, setShowUserMenu] = createSignal(false);
+  const displayName = () => user()?.displayName || user()?.githubUsername || 'User';
+  const accountName = () => user()?.offline ? 'Offline workspace' : `@${user()?.githubUsername || 'GitHub connected'}`;
+  const isActive = (path: string) => path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname.startsWith(path);
-  };
-
-  const displayName = () => {
-    const u = user();
-    return u?.displayName || u?.githubUsername || 'User';
-  };
-
-  const workspaceName = () => {
-    const u = user();
-    return u?.displayName ? `${u.displayName}'s workspace` : 'Team workspace';
-  };
-
-  return (
-    <nav class="sidebar">
-      {/* Brand */}
-      <div class="sidebar-brand">
-        <img src="/logowithname.png" alt="CORTEX" class="sidebar-logo-img" />
-      </div>
-
-      {/* Navigation */}
-      <div class="sidebar-nav">
-        <For each={navItems}>
-          {(item) => {
-            if (item.id.startsWith('divider')) {
-              return <div class="sidebar-divider" />;
-            }
-            const Icon = item.icon!;
-            return (
-              <button
-                class={`sidebar-nav-item ${isActive(item.path) ? 'active' : ''}`}
-                onClick={() => navigate(item.path)}
-                id={`nav-${item.id}`}
-              >
-                <Icon size={18} />
-                <span class="sidebar-nav-label">{item.label}</span>
-                {item.badge && <span class="sidebar-nav-badge">{item.badge}</span>}
-              </button>
-            );
-          }}
-        </For>
-      </div>
-
-      {/* Workspace info */}
-      <div class="sidebar-bottom">
-        <div
-          class="sidebar-workspace"
-          onClick={() => setShowUserMenu(!showUserMenu())}
-        >
-          <Show
-            when={user()?.githubAvatarUrl}
-            fallback={<div class="sidebar-workspace-avatar">{displayName().charAt(0)}</div>}
-          >
-            <img
-              class="sidebar-workspace-avatar-img"
-              src={user()!.githubAvatarUrl}
-              alt={displayName()}
-            />
-          </Show>
-          <div class="sidebar-workspace-info">
-            <span class="sidebar-workspace-name">{displayName()}</span>
-            <span class="sidebar-workspace-sub">{workspaceName()}</span>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
+  return <nav class="sidebar"><div class="sidebar-brand"><img src="/logowithname.png" alt="CortexMind" class="sidebar-logo-img" /></div><div class="sidebar-nav"><For each={navItems}>{(item) => { const Icon = item.icon; return <button class={`sidebar-nav-item ${isActive(item.path) ? 'active' : ''}`} onClick={() => navigate(item.path)} id={`nav-${item.id}`}><Icon size={18} /><span class="sidebar-nav-label">{item.label}</span></button>; }}</For></div><div class="sidebar-bottom"><div class="sidebar-account"><div class="sidebar-account-heading"><Github size={13} /> {user()?.offline ? 'Local profile' : 'GitHub account'}</div><div class="sidebar-account-profile"><Show when={user()?.githubAvatarUrl} fallback={<div class="sidebar-account-avatar">{displayName().charAt(0).toUpperCase()}</div>}><img class="sidebar-account-avatar" src={user()!.githubAvatarUrl} alt={displayName()} /></Show><div><strong>{displayName()}</strong><span>{accountName()}</span></div></div><Show when={!user()?.offline && user()?.githubId}><div class="sidebar-account-id">GitHub ID {user()!.githubId}</div></Show><button class="sidebar-account-logout" onClick={() => void logout()}><LogOut size={14} /> Sign out</button></div></div></nav>;
 };

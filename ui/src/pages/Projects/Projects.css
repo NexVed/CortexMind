@@ -287,3 +287,30 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+/* Projects redesign */
+.projects-page { min-height:100%; padding:32px 40px 48px; background:transparent; }
+.projects-page .page-title-icon { box-shadow:0 12px 24px rgba(202,55,183,.18); }
+.projects-toolbar { min-height:64px; padding:10px; border-radius:16px; box-shadow:0 10px 30px rgba(31,35,44,.035); }
+.projects-toolbar .search-box { height:42px; width:360px; padding:0 12px; border:1px solid var(--border); border-radius:11px; background:transparent; }
+.projects-filters { padding:3px; border-radius:11px; background:var(--bg-elevated); }
+.projects-list { gap:12px; }
+.project-list-item { min-height:94px; padding:16px 20px; border-radius:16px; gap:28px; box-shadow:0 2px 8px rgba(20,24,36,.025); }
+.project-list-item:hover { border-color:rgba(202,55,183,.26); box-shadow:0 14px 30px rgba(20,24,36,.07); }
+.project-list-item-left { min-width:270px; }.project-card-avatar{width:50px;height:50px;border-radius:14px}.project-card-name{font-size:16px}.project-list-item-desc{border-left:1px solid var(--border); padding-left:28px}.project-list-item-metrics{gap:18px}.project-list-item-actions{gap:9px}.project-card-time{white-space:nowrap}.projects-page .empty-state{min-height:360px;border:1px dashed rgba(202,55,183,.28);border-radius:20px;background:var(--bg-surface);}
+@media(max-width:1050px){.projects-page{padding:24px}.project-list-item{flex-wrap:wrap;gap:16px}.project-list-item-desc{border-left:0;padding-left:0}.project-list-item-actions{width:100%}.projects-toolbar .search-box{width:250px}}
+/* Header actions: one primary project action; repository sync belongs with filters. */
+.projects-header-actions { display: flex; align-items: center; gap: var(--s2); }
+.projects-add-button { min-height: 40px; padding: 0 16px; border-radius: 11px; box-shadow: 0 5px 14px rgba(30,30,36,.13); }
+.projects-sync-button { height: 42px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 11px; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 650; white-space: nowrap; transition: color var(--dur-fast) ease, background var(--dur-fast) ease, border-color var(--dur-fast) ease; }
+.projects-sync-button:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-elevated); border-color: var(--border-strong); }
+.projects-sync-button:disabled { opacity: .55; cursor: wait; }
+.projects-toolbar .projects-filters { margin-left: auto; }
+@media (max-width: 620px) { .projects-header-actions { width: 100%; margin-top: var(--s3); } .projects-page .page-header { flex-wrap: wrap; } .projects-add-button { width: 100%; } .projects-toolbar .projects-sync-button span { display: none; } }
+/* Keep the repository scan action permanently visible beside Open. */
+.project-list-item-metrics { align-items: center; min-width: 0; }
+.project-list-item-actions { flex: 0 0 auto; flex-shrink: 0; }
+.project-scan-button { height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--bg-surface); color: var(--text-primary); font-size: 12px; font-weight: 650; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+.project-scan-button:hover:not(:disabled) { background: var(--bg-elevated); border-color: var(--text-muted); }
+.project-scan-button.scanning { color: var(--accent); }
+.project-scan-button:disabled { cursor: wait; opacity: .72; }
+@media (max-width: 1250px) { .project-list-item-metrics .project-card-time { display: none; } }

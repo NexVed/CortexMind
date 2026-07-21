@@ -21,7 +21,9 @@ function bridge(): WailsBridge | undefined {
 }
 
 function detectWails(): boolean {
-  return typeof bridge()?.invoke === 'function' || /wails/i.test(navigator.userAgent);
+  return new URLSearchParams(window.location.search).has('desktop')
+    || typeof bridge()?.invoke === 'function'
+    || /wails/i.test(navigator.userAgent);
 }
 
 // Reactive signal — starts with an immediate check, then re-checks a few times

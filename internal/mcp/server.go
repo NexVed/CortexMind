@@ -1,268 +1,237 @@
-// Package mcp implements a Model Context Protocol (MCP) server over Streamable
-// HTTP (JSON-RPC 2.0). IDEs connect with a per-connection Bearer token that
-// binds the session to a CORTEX user and project, so the server can serve that
-// project's characterization (generated system prompt) and persist/recall the
-// AI agent's working memory with awareness of which IDE is connected.
+// Package mcp exposes cortexMind's local project memory to MCP-compatible
+// coding agents over a loopback HTTP JSON-RPC endpoint.
 package mcp
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/NexVed/Cortex/internal/db"
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/types"
-	"github.com/rs/zerolog/log"
+	"github.com/NexVed/Cortex/internal/database"
+	"github.com/NexVed/Cortex/internal/repositories"
+	"github.com/NexVed/Cortex/internal/services"
 )
 
-const (
-	protocolVersion = "2025-06-18"
-	serverName      = "cortex"
-	serverVersion   = "0.1.0"
-)
+const protocolVersion = "2025-03-26"
 
-// Server is the MCP endpoint handler.
 type Server struct {
-	App core.App
-
-	mu       sync.Mutex
-	sessions map[string]*session // keyed by mcp_tokens record id
+	graphs      services.CodeGraphService
+	context     services.AgentContextService
+	connections repositories.MCPConnectionRepository
 }
 
-// session tracks a live IDE connection in memory for the daemon's lifetime.
-type session struct {
-	ID         string
-	IDE        string
-	ClientName string
-	Started    time.Time
+func New(db *database.DB) *Server {
+	graphs := services.CodeGraphService{DB: db}
+	return &Server{graphs: graphs, context: services.AgentContextService{DB: db, Graphs: graphs}, connections: repositories.MCPConnectionRepository{DB: db}}
 }
 
-func New(app core.App) *Server {
-	return &Server{App: app, sessions: map[string]*session{}}
-}
-
-// ── JSON-RPC envelope ──────────────────────────────────
-
-type rpcRequest struct {
+type request struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
+	ID      json.RawMessage `json:"id"`
 	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Params  json.RawMessage `json:"params"`
 }
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
-
-type rpcResponse struct {
+type response struct {
 	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
+	ID      json.RawMessage `json:"id"`
 	Result  any             `json:"result,omitempty"`
 	Error   *rpcError       `json:"error,omitempty"`
 }
-
-// authContext is resolved from the connection token.
-type authContext struct {
-	token   *core.Record
-	ownerID string
-	project *core.Record // may be nil if the token is not project-bound
+type rpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+type toolCall struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+type graphArguments struct {
+	ProjectID     string   `json:"project_id"`
+	NodeID        string   `json:"node_id"`
+	Query         string   `json:"query"`
+	NodeTypes     []string `json:"node_types"`
+	Relationships []string `json:"relationships"`
+	MaxNodes      int      `json:"max_nodes"`
 }
 
-// Handler returns the http.Handler for the MCP endpoint.
-func (s *Server) Handler() http.Handler {
-	return http.HandlerFunc(s.serveHTTP)
-}
-
-func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if r.Method == http.MethodGet {
-		// SSE stream open is not required for request/response usage.
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
-	auth, err := s.authenticate(r)
+	connection, err := s.authenticate(r)
 	if err != nil {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="cortexMind"`)
 		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(rpcResponse{
-			JSONRPC: "2.0",
-			Error:   &rpcError{Code: -32001, Message: "unauthorized: " + err.Error()},
-		})
 		return
 	}
-
-	var req rpcRequest
+	var req request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		_ = json.NewEncoder(w).Encode(rpcResponse{
-			JSONRPC: "2.0",
-			Error:   &rpcError{Code: -32700, Message: "parse error"},
-		})
+		s.writeError(w, nil, -32700, "invalid JSON-RPC request")
 		return
 	}
-
-	// Notifications (no id) get acknowledged with 202 and no body.
-	isNotification := len(req.ID) == 0 || string(req.ID) == "null"
-
-	result, rerr := s.dispatch(r, auth, &req)
-
-	if isNotification {
+	if req.JSONRPC != "2.0" || req.Method == "" {
+		s.writeError(w, req.ID, -32600, "invalid JSON-RPC request")
+		return
+	}
+	if strings.HasPrefix(req.Method, "notifications/") {
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
-
-	resp := rpcResponse{JSONRPC: "2.0", ID: req.ID}
-	if rerr != nil {
-		resp.Error = rerr
-	} else {
-		resp.Result = result
-	}
-	_ = json.NewEncoder(w).Encode(resp)
-}
-
-// authenticate resolves the Bearer token to an MCP token record + owner/project.
-func (s *Server) authenticate(r *http.Request) (*authContext, error) {
-	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	if token == "" {
-		// Some clients send the key via a custom header.
-		token = strings.TrimSpace(r.Header.Get("X-Cortex-Token"))
-	}
-	if token == "" {
-		return nil, errMissingToken
-	}
-	rec, err := s.App.FindFirstRecordByFilter(db.CollMCPTokens, "token = {:t}", map[string]any{"t": token})
-	if err != nil || rec == nil {
-		return nil, errInvalidToken
-	}
-	if !rec.GetBool("enabled") {
-		return nil, errDisabledToken
-	}
-
-	ctx := &authContext{token: rec, ownerID: rec.GetString("owner")}
-	if pid := rec.GetString("project"); pid != "" {
-		if proj, err := s.App.FindRecordById(db.CollProjects, pid); err == nil {
-			ctx.project = proj
-		}
-	}
-	return ctx, nil
-}
-
-// dispatch routes a JSON-RPC method to its handler.
-func (s *Server) dispatch(r *http.Request, auth *authContext, req *rpcRequest) (any, *rpcError) {
 	switch req.Method {
 	case "initialize":
-		return s.handleInitialize(auth, req)
-	case "notifications/initialized", "notifications/cancelled":
-		return map[string]any{}, nil
+		s.writeResult(w, req.ID, map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"tools": map[string]bool{"listChanged": false}}, "serverInfo": map[string]string{"name": "cortexMind", "version": "0.1.0"}, "instructions": "Use cortex_get_context first, then call cortex_get_code_graph for code structure. Persist useful work with cortex_save_memory and cortex_summarize_session."})
 	case "ping":
-		return map[string]any{}, nil
+		s.writeResult(w, req.ID, map[string]any{})
 	case "tools/list":
-		return s.toolsList(), nil
+		s.writeResult(w, req.ID, map[string]any{"tools": toolDefinitions()})
 	case "tools/call":
-		return s.toolsCall(auth, req)
-	case "prompts/list":
-		return s.promptsList(), nil
-	case "prompts/get":
-		return s.promptsGet(auth, req)
-	case "resources/list":
-		return s.resourcesList(auth), nil
-	case "resources/read":
-		return s.resourcesRead(auth, req)
+		s.callTool(w, req, connection)
 	default:
-		return nil, &rpcError{Code: -32601, Message: "method not found: " + req.Method}
+		s.writeError(w, req.ID, -32601, "method not found")
 	}
 }
 
-func (s *Server) handleInitialize(auth *authContext, req *rpcRequest) (any, *rpcError) {
-	var params struct {
-		ProtocolVersion string `json:"protocolVersion"`
-		ClientInfo      struct {
-			Name    string `json:"name"`
-			Version string `json:"version"`
-		} `json:"clientInfo"`
+func (s *Server) callTool(w http.ResponseWriter, req request, connection *repositories.MCPConnection) {
+	var call toolCall
+	if err := json.Unmarshal(req.Params, &call); err != nil || call.Name == "" {
+		s.writeError(w, req.ID, -32602, "tools/call requires a tool name")
+		return
 	}
-	_ = json.Unmarshal(req.Params, &params)
-
-	clientName := params.ClientInfo.Name
-	if clientName == "" {
-		clientName = "unknown"
+	args := map[string]any{}
+	if len(call.Arguments) > 0 && string(call.Arguments) != "null" {
+		if err := json.Unmarshal(call.Arguments, &args); err != nil {
+			s.writeError(w, req.ID, -32602, "invalid tool arguments")
+			return
+		}
 	}
-
-	// Start (or refresh) the in-memory session and persist connection metadata.
-	sess := &session{ID: newID(), IDE: auth.token.GetString("ide"), ClientName: clientName, Started: time.Now()}
-	s.mu.Lock()
-	s.sessions[auth.token.Id] = sess
-	s.mu.Unlock()
-
-	auth.token.Set("client_name", clientName)
-	auth.token.Set("last_used", types.NowDateTime())
-	if err := s.App.Save(auth.token); err != nil {
-		log.Warn().Err(err).Msg("mcp: failed to update token on initialize")
+	projectID, _ := args["project_id"].(string)
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		s.writeError(w, req.ID, -32602, "project_id is required")
+		return
 	}
-
-	pv := params.ProtocolVersion
-	if pv == "" {
-		pv = protocolVersion
+	if projectID != connection.ProjectID {
+		s.writeToolError(w, req.ID, "connection is not authorized for this project")
+		return
 	}
-
-	projectName := ""
-	if auth.project != nil {
-		projectName = auth.project.GetString("name")
+	if call.Name == "cortex_save_memory" {
+		if stringValue(args["ide"]) == "" {
+			args["ide"] = connection.IDE
+		}
+		if stringValue(args["agent"]) == "" {
+			args["agent"] = connection.IDE
+		}
 	}
-	log.Info().Str("ide", sess.IDE).Str("client", clientName).Str("project", projectName).Msg("mcp client connected")
-
-	return map[string]any{
-		"protocolVersion": pv,
-		"capabilities": map[string]any{
-			"tools":     map[string]any{},
-			"prompts":   map[string]any{},
-			"resources": map[string]any{},
-		},
-		"serverInfo": map[string]any{
-			"name":    serverName,
-			"version": serverVersion,
-		},
-		"instructions": "CortexMind shared brain. Call the cortex_get_context tool first to load this project's characterization and the memory of previous AI sessions. Use cortex_save_memory to record progress, decisions and context as you work.",
-	}, nil
+	result, err := s.executeTool(call.Name, projectID, args)
+	if err != nil {
+		s.writeToolError(w, req.ID, err.Error())
+		return
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		s.writeError(w, req.ID, -32603, "failed to encode tool result")
+		return
+	}
+	_ = s.connections.Touch(connection.ID)
+	s.writeResult(w, req.ID, map[string]any{"content": []map[string]string{{"type": "text", "text": string(raw)}}, "structuredContent": result, "isError": false})
 }
 
-// session returns the live session for a token, creating a fallback if the
-// daemon restarted mid-connection.
-func (s *Server) sessionFor(auth *authContext) *session {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if sess, ok := s.sessions[auth.token.Id]; ok {
-		return sess
+func (s *Server) executeTool(name, projectID string, args map[string]any) (any, error) {
+	switch name {
+	case "cortex_get_code_graph":
+		raw, _ := json.Marshal(args)
+		var input graphArguments
+		if err := json.Unmarshal(raw, &input); err != nil {
+			return nil, fmt.Errorf("invalid graph arguments")
+		}
+		if input.MaxNodes < 0 || input.MaxNodes > 1000 {
+			return nil, fmt.Errorf("max_nodes must be between 1 and 1000")
+		}
+		if !validValues(input.NodeTypes, map[string]bool{"dir": true, "file": true, "function": true, "class": true, "package": true}) {
+			return nil, fmt.Errorf("node_types contains an unsupported value")
+		}
+		if !validValues(input.Relationships, map[string]bool{"contains": true, "defines": true, "imports": true, "depends_on": true}) {
+			return nil, fmt.Errorf("relationships contains an unsupported value")
+		}
+		return s.graphs.Context(projectID, services.CodeGraphQuery{NodeID: input.NodeID, Query: input.Query, NodeTypes: input.NodeTypes, Relationships: input.Relationships, MaxNodes: input.MaxNodes})
+	case "cortex_get_context":
+		return s.context.GetContext(projectID, integer(args["memory_limit"]))
+	case "cortex_save_memory":
+		memory := map[string]any{"title": stringValue(args["title"]), "content": stringValue(args["content"]), "category": stringValue(args["category"]), "session_id": stringValue(args["session_id"]), "agent": stringValue(args["agent"]), "owner": stringValue(args["agent"]), "ide": stringValue(args["ide"]), "client_name": stringValue(args["ide"]), "tags": args["tags"]}
+		return s.context.SaveMemory(projectID, memory)
+	case "cortex_list_memories":
+		return s.context.ListMemories(projectID, integer(args["limit"]))
+	case "cortex_get_tasks":
+		return s.context.ActiveTasks(projectID, integer(args["limit"]))
+	case "cortex_summarize_session":
+		return s.context.SaveSessionDigest(projectID, stringValue(args["session_id"]), stringValue(args["title"]), stringValue(args["summary"]))
+	default:
+		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
-	sess := &session{ID: newID(), IDE: auth.token.GetString("ide"), ClientName: auth.token.GetString("client_name"), Started: time.Now()}
-	s.sessions[auth.token.Id] = sess
-	return sess
 }
 
-func newID() string {
-	b := make([]byte, 12)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+func (s *Server) authenticate(r *http.Request) (*repositories.MCPConnection, error) {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	if !strings.HasPrefix(value, "Bearer ") {
+		return nil, fmt.Errorf("missing bearer token")
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(value, "Bearer "))
+	if token == "" {
+		return nil, fmt.Errorf("missing bearer token")
+	}
+	return s.connections.Authenticate(token)
 }
+func (s *Server) writeToolError(w http.ResponseWriter, id json.RawMessage, message string) {
+	s.writeResult(w, id, map[string]any{"content": []map[string]string{{"type": "text", "text": message}}, "isError": true})
+}
+func (s *Server) writeResult(w http.ResponseWriter, id json.RawMessage, result any) {
+	s.write(w, response{JSONRPC: "2.0", ID: id, Result: result})
+}
+func (s *Server) writeError(w http.ResponseWriter, id json.RawMessage, code int, message string) {
+	s.write(w, response{JSONRPC: "2.0", ID: id, Error: &rpcError{Code: code, Message: message}})
+}
+func (s *Server) write(w http.ResponseWriter, value response) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(value)
+}
+func validValues(values []string, allowed map[string]bool) bool {
+	for _, value := range values {
+		if !allowed[value] {
+			return false
+		}
+	}
+	return true
+}
+func stringValue(value any) string { text, _ := value.(string); return strings.TrimSpace(text) }
+func integer(value any) int        { number, _ := value.(float64); return int(number) }
 
-// errors
-var (
-	errMissingToken = mcpErr("missing bearer token")
-	errInvalidToken = mcpErr("invalid token")
-	errDisabledToken = mcpErr("token disabled")
-)
-
-type mcpErr string
-
-func (e mcpErr) Error() string { return string(e) }
+func toolDefinitions() []any {
+	return []any{
+		tool("cortex_get_context", "Load the bound project's profile, code-graph statistics, and recent memories. Call this first.", map[string]any{"memory_limit": integerSchema("Maximum recent memories, default 25.")}, nil),
+		tool("cortex_get_code_graph", "Query the persisted code graph for files, functions, classes, packages, and dependencies.", map[string]any{"node_id": stringSchema("Optional node ID; returns direct relationships."), "query": stringSchema("Case-insensitive label/path search."), "node_types": enumArray("dir", "file", "function", "class", "package"), "relationships": enumArray("contains", "defines", "imports", "depends_on"), "max_nodes": integerSchema("Maximum nodes, default 250.")}, nil),
+		tool("cortex_save_memory", "Persist a project memory so later coding sessions can recall progress, decisions, notes, context, or handoffs.", map[string]any{"title": stringSchema("Short memory title."), "content": stringSchema("Memory content."), "category": enumSchema("context", "progress", "decision", "note", "handoff"), "session_id": stringSchema("Optional client session ID."), "agent": stringSchema("Optional agent name."), "ide": stringSchema("Optional IDE/client name."), "tags": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}, []string{"content"}),
+		tool("cortex_list_memories", "List recent stored project memories from prior agents and IDE sessions.", map[string]any{"limit": integerSchema("Maximum memories, default 50.")}, nil),
+		tool("cortex_get_tasks", "List active project tasks; completed and cancelled tasks are excluded.", map[string]any{"limit": integerSchema("Maximum tasks, default 50.")}, nil),
+		tool("cortex_summarize_session", "Save an agent-authored, token-efficient session digest for later sessions. The agent supplies the summary.", map[string]any{"session_id": stringSchema("Optional client session ID."), "title": stringSchema("Optional digest title."), "summary": stringSchema("Concise session summary to persist.")}, []string{"summary"}),
+	}
+}
+func tool(name, description string, properties map[string]any, required []string) map[string]any {
+	properties["project_id"] = stringSchema("Project ID bound to this connection.")
+	required = append(required, "project_id")
+	return map[string]any{"name": name, "description": description, "inputSchema": map[string]any{"type": "object", "additionalProperties": false, "properties": properties, "required": required}}
+}
+func stringSchema(description string) map[string]any {
+	return map[string]any{"type": "string", "description": description}
+}
+func integerSchema(description string) map[string]any {
+	return map[string]any{"type": "integer", "minimum": 1, "maximum": 100, "description": description}
+}
+func enumSchema(values ...string) map[string]any {
+	return map[string]any{"type": "string", "enum": values}
+}
+func enumArray(values ...string) map[string]any {
+	return map[string]any{"type": "array", "items": enumSchema(values...)}
+}

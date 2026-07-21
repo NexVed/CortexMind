@@ -1,143 +1,110 @@
 package auth
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
+	"net"
 	"net/http"
-	"time"
+	"sync"
 
-	"github.com/pocketbase/pocketbase/core"
-	"github.com/rs/zerolog/log"
+	"github.com/NexVed/Cortex/internal/keychain"
+	"github.com/NexVed/Cortex/internal/oauth"
+	"github.com/NexVed/Cortex/internal/services"
 )
 
-// RegisterOAuthHooks wires PocketBase OAuth2 events so that the GitHub access
-// token and profile data are persisted on the user record after login.
-func RegisterOAuthHooks(app core.App) {
-	app.OnRecordAuthWithOAuth2Request().BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
-		// Continue the default flow first so the user record exists.
-		if err := e.Next(); err != nil {
-			return err
-		}
-		if e.OAuth2User == nil || e.Record == nil {
-			return nil
-		}
+type Service struct {
+	ClientID string
+	GitHub   services.Onboarding
+	Tokens   keychain.TokenStore
+	mu       sync.Mutex
+	active   bool
+}
+type StartResult struct {
+	URL string `json:"url"`
+}
 
-		e.Record.Set("github_access_token", e.OAuth2User.AccessToken)
-		if login, ok := e.OAuth2User.RawUser["login"].(string); ok {
-			e.Record.Set("github_username", login)
+// StartGitHub creates a short-lived loopback callback server before returning
+// the authorization URL. State and PKCE are held only in process memory.
+func (s *Service) StartGitHub() (StartResult, error) {
+	if s.ClientID == "" {
+		return StartResult{}, fmt.Errorf("GitHub OAuth is not configured in this build")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active {
+		return StartResult{}, fmt.Errorf("GitHub authorization is already in progress")
+	}
+	s.active = true
+	verifier, challenge, err := oauth.PKCE()
+	if err != nil {
+		s.active = false
+		return StartResult{}, err
+	}
+	state, err := oauth.State()
+	if err != nil {
+		s.active = false
+		return StartResult{}, err
+	}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		s.active = false
+		return StartResult{}, err
+	}
+	redirect := "http://" + listener.Addr().String() + "/oauth/github/callback"
+	mux := http.NewServeMux()
+	server := &http.Server{Handler: mux}
+	finish := func() { s.mu.Lock(); s.active = false; s.mu.Unlock(); go server.Close() }
+	mux.HandleFunc("/oauth/github/callback", func(w http.ResponseWriter, r *http.Request) {
+		defer finish()
+		if r.URL.Query().Get("state") != state {
+			http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
+			return
 		}
-		if e.OAuth2User.AvatarURL != "" {
-			e.Record.Set("github_avatar_url", e.OAuth2User.AvatarURL)
+		if e := r.URL.Query().Get("error"); e != "" {
+			http.Error(w, "GitHub authorization was declined: "+e, http.StatusBadRequest)
+			return
 		}
-		if e.OAuth2User.Name != "" {
-			e.Record.Set("display_name", e.OAuth2User.Name)
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			http.Error(w, "Missing authorization code", http.StatusBadRequest)
+			return
 		}
-
-		if err := e.App.Save(e.Record); err != nil {
-			log.Error().Err(err).Msg("failed to persist github token on user record")
-			return err
+		token, err := s.GitHub.GitHub.Exchange(r.Context(), code, redirect, verifier)
+		if err == nil {
+			u, completeErr := s.GitHub.CompleteGitHub(context.Background(), token)
+			err = completeErr
+			if err == nil {
+				err = s.Tokens.Set("github:"+u.ID, token)
+			}
 		}
-		log.Info().Str("user", e.Record.Id).Msg("stored github oauth token")
-		return nil
+		if err != nil {
+			http.Error(w, "Unable to finish sign-in. Return to cortexMind and try again.", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprint(w, "<html><head><title>CortexMind connected</title></head><body><h2>CortexMind is connected to GitHub.</h2><p>This window closes automatically. Return to CortexMind.</p><script>window.close();</script></body></html>")
 	})
+	go server.Serve(listener)
+	return StartResult{URL: s.GitHub.GitHub.AuthorizationURL(redirect, state, challenge)}, nil
 }
-
-// Client is a thin wrapper around the GitHub REST API v3.
-type Client struct {
-	AccessToken string
-	BaseURL     string
-	HTTP        *http.Client
-}
-
-func NewClient(token string) *Client {
-	return &Client{
-		AccessToken: token,
-		BaseURL:     "https://api.github.com",
-		HTTP:        &http.Client{Timeout: 20 * time.Second},
+func (s *Service) CurrentGitHubToken() (string, error) {
+	u, err := s.GitHub.Users.Current()
+	if err != nil {
+		return "", err
 	}
+	if u == nil || u.Provider != "github" {
+		return "", fmt.Errorf("GitHub is not connected")
+	}
+	return s.Tokens.Get("github:" + u.ID)
 }
 
-// Repo is a minimal subset of the GitHub repository object.
-type Repo struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	FullName    string `json:"full_name"`
-	Description string `json:"description"`
-	Private     bool   `json:"private"`
-	HTMLURL     string `json:"html_url"`
-	CloneURL    string `json:"clone_url"`
-	Language    string `json:"language"`
-	Default     string `json:"default_branch"`
-}
-
-// Org is a minimal subset of the GitHub organization object.
-type Org struct {
-	Login string `json:"login"`
-	ID    int64  `json:"id"`
-}
-
-func (c *Client) do(method, path string, out any) error {
-	req, err := http.NewRequest(method, c.BaseURL+path, nil)
+func (s *Service) Logout() error {
+	u, err := s.GitHub.Users.Current()
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.AccessToken)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
+	if u != nil && u.Provider == "github" {
+		_ = s.Tokens.Delete("github:" + u.ID)
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 300 {
-		return fmt.Errorf("github api %s %s: status %d: %s", method, path, resp.StatusCode, string(body))
-	}
-	if out == nil {
-		return nil
-	}
-	return json.Unmarshal(body, out)
-}
-
-// ListUserRepos returns every repository the authenticated user can access:
-// repos they own, repos they collaborate on, and repos in their organizations,
-// across both public and private visibility. GitHub paginates at 100 items per
-// page, so we walk pages until a short page signals the end. We explicitly pass
-// affiliation + visibility because the API's defaults can silently omit org and
-// collaborator repositories for some token types.
-func (c *Client) ListUserRepos() ([]Repo, error) {
-	var all []Repo
-	const perPage = 100
-	for page := 1; page <= 50; page++ { // cap at 5000 repos
-		var batch []Repo
-		path := fmt.Sprintf(
-			"/user/repos?per_page=%d&page=%d&sort=updated&visibility=all&affiliation=owner,collaborator,organization_member",
-			perPage, page)
-		if err := c.do(http.MethodGet, path, &batch); err != nil {
-			return all, err
-		}
-		all = append(all, batch...)
-		if len(batch) < perPage {
-			break
-		}
-	}
-	return all, nil
-}
-
-func (c *Client) GetRepo(owner, name string) (*Repo, error) {
-	var repo Repo
-	err := c.do(http.MethodGet, fmt.Sprintf("/repos/%s/%s", owner, name), &repo)
-	if err != nil {
-		return nil, err
-	}
-	return &repo, nil
-}
-
-func (c *Client) GetUserOrgs() ([]Org, error) {
-	var orgs []Org
-	err := c.do(http.MethodGet, "/user/orgs", &orgs)
-	return orgs, err
+	return s.GitHub.DB.ClearActiveUser()
 }

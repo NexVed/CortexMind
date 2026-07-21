@@ -6,7 +6,7 @@
 #   2. embeds it into internal/web/dist   (the daemon serves it locally)
 #   3. compiles the Wails webview shell   -> build/dist/CortexMind
 #
-# The desktop app boots the same embedded PocketBase daemon as cortexd and opens
+# The desktop app boots the same embedded SQLite daemon as cortexd and opens
 # a native webview window at http://127.0.0.1:<port> instead of a browser.
 #
 # IMPORTANT: Wails uses the OS-native webview and CGO, so this MUST be run on the

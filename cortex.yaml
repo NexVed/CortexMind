@@ -1,16 +1,16 @@
 # CORTEX daemon configuration.
 # Secrets (GitHub OAuth) are loaded from environment variables:
 #   CORTEX_GITHUB_CLIENT_ID, CORTEX_GITHUB_CLIENT_SECRET
-# GitHub OAuth itself is configured in the PocketBase admin UI at /_/.
+# The official desktop build supplies its GitHub OAuth client identity.
 
 server:
   port: 8090
   mcp_port: 8091
-  data_dir: ~/.cortex/pb_data
+  data_dir: ~/.cortex
 
 github:
-  client_id: ""
-  client_secret: ""
+  client_id: "Ov23liIGsZJLehp5Dez2"
+  client_secret: "58afe5d8e52d2057b174052ed27fdd5ce3589748"
 
 scanner:
   interval_minutes: 30

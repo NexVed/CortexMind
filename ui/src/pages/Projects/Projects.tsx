@@ -127,12 +127,8 @@ export const ProjectsPage: Component = () => {
             <p class="page-subtitle">Manage your local and remote codebases</p>
           </div>
         </div>
-        <div class="page-actions">
-          <button class="btn secondary" onClick={handleSync} disabled={syncM.isPending}>
-            <RefreshCw size={16} class={syncM.isPending ? 'spin' : ''} />
-            {syncM.isPending ? 'Syncing GitHub...' : 'Sync GitHub'}
-          </button>
-          <button class="btn primary" onClick={openCreate}>
+        <div class="projects-header-actions">
+          <button class="btn primary projects-add-button" onClick={openCreate}>
             <Plus size={16} />
             Add Project
           </button>
@@ -144,6 +140,10 @@ export const ProjectsPage: Component = () => {
       </Show>
 
       <div class="projects-toolbar">
+        <button class="projects-sync-button" onClick={handleSync} disabled={syncM.isPending} title="Sync repositories from GitHub">
+          <RefreshCw size={15} class={syncM.isPending ? 'spin' : ''} />
+          <span>{syncM.isPending ? 'Syncing…' : 'Sync GitHub'}</span>
+        </button>
         <div class="search-box">
           <Search size={16} class="search-icon" />
           <input
@@ -220,21 +220,22 @@ export const ProjectsPage: Component = () => {
                       <span>Remote synced</span>
                     </div>
                   </Show>
-                </div>
-
-                <div class="project-list-item-actions">
                   <span class="project-card-time">
                     Updated {new Date(project.updated).toLocaleDateString()}
                   </span>
+                </div>
+
+                <div class="project-list-item-actions">
                   <button
-                    class={`btn secondary small ${isScanning ? 'scanning' : ''}`}
+                    class={`project-scan-button ${isScanning ? 'scanning' : ''}`}
                     onClick={() => handleScan(project.id)}
                     disabled={isScanning}
+                    title="Scan repository and rebuild its code graph"
                   >
-                    <Show when={!isScanning} fallback={<Scan class="spin" size={14} />}>
-                      <Scan size={14} />
+                    <Show when={!isScanning} fallback={<Scan class="spin" size={15} />}>
+                      <Scan size={15} />
                     </Show>
-                    {isScanning ? 'Scanning...' : 'Scan'}
+                    <span>{isScanning ? 'Scanning…' : 'Scan'}</span>
                   </button>
                   <button class="btn primary small" onClick={() => navigate(`/repository/${project.id}`)}>
                     <Play size={14} />
@@ -300,3 +301,5 @@ export const ProjectsPage: Component = () => {
     </div>
   );
 };
+
+

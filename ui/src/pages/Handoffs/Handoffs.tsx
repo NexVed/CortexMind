@@ -19,6 +19,7 @@ import './Handoffs.css';
 
 export const HandoffsPage: Component = () => {
   const [searchQuery, setSearchQuery] = createPersistedSignal('handoffs.search', '');
+  const [activeFilter, setActiveFilter] = createPersistedSignal('handoffs.filter', 'all');
 
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
@@ -137,7 +138,7 @@ export const HandoffsPage: Component = () => {
         <div class="empty-state">
           <div class="empty-icon"><ArrowRightLeft size={32} /></div>
           <h3>No handoffs found</h3>
-          <p>Create a handoff to share context between your AI agents.</p>
+          <p>Capture what matters, then give the next agent a clean starting point.</p>`r`n          <button class="empty-state-action" onClick={openCreate}><Plus size={16} /> Create a handoff</button>
         </div>
       </Show>
 
@@ -231,3 +232,4 @@ export const HandoffsPage: Component = () => {
     </div>
   );
 };
+

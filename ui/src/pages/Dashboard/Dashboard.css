@@ -1175,3 +1175,12 @@
 .dash-fab:active {
   transform: translateY(0);
 }
+/* Bubble Knowledge: keep the compact dashboard card legible at every column width. */
+.dash-bubble-card { min-width: 0; padding: 18px; }
+.dash-bubble-card .dash-card-header { min-height: 28px; gap: 10px; margin-bottom: 2px; }
+.dash-bubble-card .dash-card-title { flex: 1; min-width: 0; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-bubble-card .dash-card-source { display: none; }
+.dash-bubble-card .dash-card-link { flex: 0 0 auto; color: var(--accent); font-size: 11px; font-weight: 650; white-space: nowrap; }
+.dash-bubble-container { min-height: 230px; display: flex; align-items: center; justify-content: center; padding: 2px 0 0; }
+.dash-bubble-svg { display: block; max-width: 100%; }
+@media (max-width: 430px) { .dash-bubble-card { padding: 14px; } .dash-bubble-container { min-height: 210px; } .dash-bubble-card .dash-card-link { font-size: 10px; } }

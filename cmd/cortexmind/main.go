@@ -1,7 +1,7 @@
 // Command cortexmind is the native desktop shell for CortexMind.
 //
 // It is a complete, self-contained desktop app: it embeds and boots the same
-// CORTEX daemon that cmd/cortexd runs (PocketBase serving the SolidJS UI + API
+// CORTEX daemon serving the SolidJS UI + local API
 // on 127.0.0.1) and opens a native Wails v3 webview window pointed at it — no
 // browser, no separately-run backend.
 //
@@ -55,7 +55,7 @@ func main() {
 		os.Args = []string{os.Args[0], "serve", "--http", addr}
 		d := daemon.New(cfg)
 		errCh := make(chan error, 1)
-		go func() { errCh <- d.App.Start() }()
+		go func() { errCh <- d.Start() }()
 
 		if err := waitForServer(addr, 25*time.Second, errCh); err != nil {
 			fatal(cfg, "CortexMind could not start its backend.", err)
@@ -84,12 +84,13 @@ func main() {
 	})
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "CortexMind",
-		Width:            1400,
-		Height:           900,
-		MinWidth:         960,
-		MinHeight:        600,
-		URL:              "http://" + addr,
+		Title:     "CortexMind",
+		Width:     1400,
+		Height:    900,
+		MinWidth:  960,
+		MinHeight: 600,
+		// Mark the local daemon page as a desktop navigation so the titlebar always renders.
+		URL:              "http://" + addr + "?desktop=1",
 		BackgroundColour: application.NewRGB(13, 17, 23),
 		// Frameless: the UI draws its own titlebar (WindowTitleBar.tsx). On
 		// Windows 11 frameless windows still get DWM rounded corners + shadow.

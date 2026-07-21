@@ -120,7 +120,7 @@ export function useVaultEntries(params?: Accessor<{ projectId?: string; category
       queryKey: qk.vaultEntries(scope),
       queryFn: () => listVaultEntries(scope),
       enabled: params ? !!scope?.projectId : true,
-      refetchInterval: params ? 30_000 : undefined,
+      refetchInterval: params ? 5_000 : undefined,
     };
   });
 }
@@ -138,7 +138,7 @@ export function useProjectActivity(projectId: Accessor<string>, limit = 10) {
     queryKey: qk.projectActivity(projectId(), limit),
     queryFn: () => (projectId() ? listProjectActivity(projectId(), limit) : Promise.resolve([])),
     enabled: !!projectId(),
-    refetchInterval: 30_000,
+    refetchInterval: 5_000,
   }));
 }
 
@@ -159,6 +159,7 @@ export function useSystemPrompt(projectId: Accessor<string>) {
     queryKey: qk.systemPrompt(projectId()),
     queryFn: () => getSystemPrompt(projectId()),
     enabled: !!projectId(),
+    refetchInterval: 5_000,
   }));
 }
 
@@ -191,6 +192,7 @@ export function useSessionDigests(projectId: Accessor<string>) {
     queryKey: qk.sessionDigests(projectId()),
     queryFn: () => listSessionDigests(projectId()),
     enabled: !!projectId(),
+    refetchInterval: 5_000,
   }));
 }
 
@@ -208,6 +210,7 @@ export function useAgentMemories(projectId: Accessor<string>) {
     queryKey: qk.agentMemories(projectId()),
     queryFn: () => listAgentMemories(projectId()),
     enabled: !!projectId(),
+    refetchInterval: 5_000,
   }));
 }
 
@@ -225,7 +228,7 @@ export function useActiveAgents(projectId: Accessor<string>) {
     queryKey: qk.activeAgents(projectId()),
     queryFn: () => getActiveAgents(projectId() || undefined),
     enabled: !!projectId(),
-    refetchInterval: 30_000,
+    refetchInterval: 5_000,
   }));
 }
 
@@ -335,3 +338,8 @@ export function useResetAllData() {
     onSuccess: () => queryClient.clear(),
   }));
 }
+
+
+
+
+

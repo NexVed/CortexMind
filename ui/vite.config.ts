@@ -6,12 +6,12 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      // PocketBase REST API + OAuth redirects
+      // Local API + OAuth redirects
       '/api': {
         target: 'http://127.0.0.1:8090',
         changeOrigin: true,
       },
-      // PocketBase admin UI (for development setup)
+      // Local API
       '/_': {
         target: 'http://127.0.0.1:8090',
         changeOrigin: true,

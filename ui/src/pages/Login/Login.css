@@ -282,3 +282,12 @@
     gap: 8px;
   }
 }
+
+.login-windowbar { position: fixed; top: 0; right: 0; left: 0; height: 46px; display: flex; align-items: center; justify-content: space-between; padding-left: 16px; background: #fff; border-bottom: 1px solid var(--border); color: var(--text-primary); -webkit-app-region: drag; app-region: drag; }
+.login-windowbar-brand { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+.login-windowbar-brand img { width: 20px; height: 20px; object-fit: contain; }
+.login-window-controls { align-self: stretch; display: flex; -webkit-app-region: no-drag; app-region: no-drag; }
+.login-window-controls button { width: 46px; display: grid; place-items: center; color: #666; }
+.login-window-controls button:hover { background: #f0f0f2; color: #1a1a1e; }
+.login-window-controls .login-window-close:hover { background: #e81123; color: #fff; }
+.login-page:has(.login-windowbar) { padding-top: 46px; }

@@ -176,7 +176,7 @@ export const TasksPage: Component = () => {
         <div class="empty-state">
           <div class="empty-icon"><ListTodo size={32} /></div>
           <h3>No tasks found</h3>
-          <p>You're all caught up! Create a new task to get started.</p>
+          <p>Plan the next focused piece of work, assign a priority, and keep the project moving.</p>`r`n          <button class="empty-state-action" onClick={openCreate}><Plus size={16} /> Create your first task</button>
         </div>
       </Show>
 
@@ -277,3 +277,4 @@ export const TasksPage: Component = () => {
     </div>
   );
 };
+

@@ -1,4 +1,4 @@
-import { Component, Show, createEffect, createSignal } from 'solid-js';
+import { Component, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { useSearchParams } from '@solidjs/router';
 import {
   Archive,
@@ -11,7 +11,7 @@ import {
   Sparkles,
 } from 'lucide-solid';
 import { generateSystemPrompt } from '../../api/client';
-import { useProjects, useSaveSystemPrompt, useSystemPrompt } from '../../api/queries';
+import { useAgentMemories, useProjects, useSaveSystemPrompt, useSystemPrompt } from '../../api/queries';
 import { ProjectSelect } from '../../components/ProjectSelect/ProjectSelect';
 import { createProjectSelection } from '../../api/projectSelection';
 import { createPersistedSignal } from '../../api/persistedState';
@@ -43,7 +43,11 @@ export const AIContextPage: Component = () => {
   const selectedProject = projectSelection.selected;
   const setSelectedProject = projectSelection.select;
   const promptQuery = useSystemPrompt(selectedProject);
+  const memoriesQuery = useAgentMemories(selectedProject);
   const savePrompt = useSaveSystemPrompt();
+  const latestSessionContext = createMemo(() =>
+    (memoriesQuery.data || []).find((memory) => memory.category === 'context')
+  );
 
   // Only apply a response to the project it belongs to. This prevents the
   // previous project's prompt from appearing while the new project loads.
@@ -166,6 +170,22 @@ export const AIContextPage: Component = () => {
             </p>
           </div>
 
+          <Show when={latestSessionContext()}>
+            {(memory) => (
+              <div class="config-card session-context-card">
+                <h3>Latest Session Context</h3>
+                <p class="session-context-title">{memory().title}</p>
+                <p class="session-context-meta">
+                  Saved {new Date(memory().updated || memory().created).toLocaleString()}
+                </p>
+                <pre class="session-context-content">{memory().content}</pre>
+                <p class="config-help">
+                  This complete hand-off is saved by <code>cortex_save_memory</code>. Generate a baseline to include it in the editable system prompt.
+                </p>
+              </div>
+            )}
+          </Show>
+
           <div class="config-card">
             <h3>Optional Baseline Sources</h3>
             <p class="config-help">Use these only when you want CORTEX to draft or refresh a starting point.</p>
@@ -282,3 +302,5 @@ export const AIContextPage: Component = () => {
     </div>
   );
 };
+
+

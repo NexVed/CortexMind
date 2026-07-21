@@ -15,7 +15,6 @@
     "@solidjs/router": "^0.14.0",
     "@tanstack/solid-query": "^5.101.2",
     "lucide-solid": "^0.469.0",
-    "pocketbase": "^0.25.0",
     "solid-js": "^1.8.15",
     "zustand": "^5.0.14"
   },

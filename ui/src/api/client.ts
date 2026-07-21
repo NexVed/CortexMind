@@ -1,19 +1,18 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { createClient } from '@connectrpc/connect';
-import { pb } from './pb';
 
 // ── Transport ──────────────────────────────────────────
 
 // In dev, Vite proxies /cortex.v1.* requests to the backend.
-// In production, ConnectRPC is served on the same origin by PocketBase.
+// In production, ConnectRPC is served on the same local origin.
 const baseUrl = import.meta.env.VITE_API_URL || '';
 
 const transport = createConnectTransport({
   baseUrl,
-  // Inject the PocketBase auth token on every RPC call.
+  // Inject the local SQLite API auth token on every RPC call.
   interceptors: [
     (next) => async (req) => {
-      const token = pb.authStore.token;
+      const token = '';
       if (token) {
         req.header.set('Authorization', `Bearer ${token}`);
       }
@@ -28,12 +27,12 @@ const transport = createConnectTransport({
 // be created by `buf generate`). For now we export a helper that pages can
 // use once the generated types are ready. Until code generation runs, the
 // pages will use a lightweight fetch-based fallback that talks directly to
-// PocketBase collections for data, and ConnectRPC once stubs are generated.
+// local SQLite API collections for data, and ConnectRPC once stubs are generated.
 
-// Generic typed fetch helper for PocketBase REST endpoints.
+// Generic typed fetch helper for local SQLite API REST endpoints.
 // This is the fallback used by all pages until ConnectRPC TS stubs are generated.
 
-interface PBListResult<T> {
+interface PageResult<T> {
   page: number;
   perPage: number;
   totalPages: number;
@@ -41,13 +40,13 @@ interface PBListResult<T> {
   items: T[];
 }
 
-const API_BASE = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8090';
 
-async function pbFetch<T>(path: string): Promise<T> {
+async function apiFetch<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -164,14 +163,11 @@ export interface SearchResult {
 
 // Projects
 export async function listProjects(): Promise<Project[]> {
-  const res = await pbFetch<PBListResult<Project>>(
-    '/api/collections/projects/records?sort=-last_activity&perPage=200'
-  );
-  return res.items;
+  return apiFetch<Project[]>('/api/projects');
 }
 
 export async function getProject(id: string): Promise<Project> {
-  return pbFetch<Project>(`/api/collections/projects/records/${id}`);
+  return apiFetch<Project>(`/api/projects/${encodeURIComponent(id)}`);
 }
 
 export async function createProject(data: {
@@ -181,9 +177,9 @@ export async function createProject(data: {
   github_url?: string;
 }): Promise<Project> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const owner = pb.authStore.record?.id;
+  const owner = undefined;
   const body = {
     ...data,
     status: 'active',
@@ -191,7 +187,7 @@ export async function createProject(data: {
     icon_color: colorFromName(data.name),
     ...(owner ? { owner } : {}),
   };
-  const res = await fetch(`${API_BASE}/api/collections/projects/records`, {
+  const res = await fetch(`${API_BASE}/api/projects`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -219,7 +215,7 @@ export async function listTasks(params?: {
   if (params?.projectId) parts.push(`project="${params.projectId}"`);
   if (params?.status) parts.push(`status="${params.status}"`);
   if (parts.length) filter = `&filter=(${parts.join(' && ')})`;
-  const res = await pbFetch<PBListResult<Task>>(
+  const res = await apiFetch<PageResult<Task>>(
     `/api/collections/tasks/records?sort=-updated&perPage=500${filter}`
   );
   return res.items;
@@ -230,7 +226,7 @@ export async function updateTask(
   data: Partial<Task>
 ): Promise<Task> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}/api/collections/tasks/records/${id}`, {
     method: 'PATCH',
@@ -250,9 +246,9 @@ export async function createTask(data: {
   assigned_to?: string;
 }): Promise<Task> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const owner = pb.authStore.record?.id;
+  const owner = undefined;
   const body = {
     status: 'todo',
     priority: 'medium',
@@ -274,7 +270,7 @@ export async function listHandoffs(params?: {
 }): Promise<Handoff[]> {
   let filter = '';
   if (params?.projectId) filter = `&filter=(project="${params.projectId}")`;
-  const res = await pbFetch<PBListResult<Handoff>>(
+  const res = await apiFetch<PageResult<Handoff>>(
     `/api/collections/handoffs/records?sort=-updated&perPage=200${filter}`
   );
   return res.items;
@@ -289,9 +285,9 @@ export async function createHandoff(data: {
   included_files?: string[];
 }): Promise<Handoff> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const owner = pb.authStore.record?.id;
+  const owner = undefined;
   const body = {
     status: 'active',
     ...data,
@@ -318,7 +314,7 @@ export async function listVaultEntries(params?: {
   if (params?.projectId) parts.push(`project="${params.projectId}"`);
   if (params?.category) parts.push(`category="${params.category}"`);
   if (parts.length) filter = `&filter=(${parts.join(' && ')})`;
-  const res = await pbFetch<PBListResult<VaultEntry>>(
+  const res = await apiFetch<PageResult<VaultEntry>>(
     `/api/collections/vault_entries/records?sort=-updated&perPage=500${filter}`
   );
   return res.items;
@@ -333,9 +329,9 @@ export async function createVaultEntry(data: {
   is_shared?: boolean;
 }): Promise<VaultEntry> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const owner = pb.authStore.record?.id;
+  const owner = undefined;
   const body = {
     version: 1,
     ...data,
@@ -352,7 +348,7 @@ export async function createVaultEntry(data: {
 
 // Activity Log
 export async function listActivity(limit = 10): Promise<ActivityLogEntry[]> {
-  const res = await pbFetch<PBListResult<ActivityLogEntry>>(
+  const res = await apiFetch<PageResult<ActivityLogEntry>>(
     `/api/collections/activity_log/records?sort=-created&perPage=${limit}`
   );
   return res.items;
@@ -405,50 +401,50 @@ export async function listNotifications(limit = 20): Promise<Notification[]> {
 // File Index (for recently opened)
 export async function listRecentFiles(limit = 4, projectId?: string): Promise<FileIndexEntry[]> {
   const filter = projectId ? `&filter=(project="${projectId}")` : '';
-  const res = await pbFetch<PBListResult<FileIndexEntry>>(
+  const res = await apiFetch<PageResult<FileIndexEntry>>(
     `/api/collections/file_index/records?sort=-last_indexed&perPage=${limit}${filter}`
   );
   return res.items;
 }
 
-// Search (via ConnectRPC — fallback to PocketBase collection search)
+// Search (via ConnectRPC — fallback to local SQLite API collection search)
 export async function searchAll(query: string, scope?: string[]): Promise<SearchResult[]> {
-  if (!query.trim()) return [];
-  // Search across multiple collections using PocketBase's built-in search
-  const results: SearchResult[] = [];
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
   const collections = scope?.length
     ? scope.map((s) => s.toLowerCase())
-    : ['vault_entries', 'tasks', 'handoffs', 'file_index'];
-
-  const searchPromises = collections.map(async (coll) => {
+    : ['vault_entries', 'tasks', 'handoffs', 'file_index', 'agent_memories', 'session_digests'];
+  const results: SearchResult[] = [];
+  const matches = (item: any) => [item.title, item.path, item.content, item.description, item.summary_md, item.context]
+    .filter(Boolean).join(' ').toLowerCase().includes(needle);
+  await Promise.all(collections.map(async (collection) => {
     try {
-      const res = await pbFetch<PBListResult<any>>(
-        `/api/collections/${coll}/records?filter=(title~"${encodeURIComponent(query)}" || content~"${encodeURIComponent(query)}")&perPage=10`
-      );
-      for (const item of res.items) {
+      const page = await apiFetch<PageResult<any>>(`/api/collections/${collection}/records?perPage=500`);
+      for (const item of page.items) {
+        if (!matches(item)) continue;
         results.push({
-          id: item.id,
-          collection: coll,
-          project_id: item.project || '',
-          title: item.title || item.path || '',
-          excerpt: item.content?.substring(0, 200) || item.description?.substring(0, 200) || '',
-          score: 1.0,
+          id: item.id, collection, project_id: item.project || item.project_id || '',
+          title: item.title || item.path || 'Untitled result',
+          excerpt: item.content || item.description || item.summary_md || item.context || '', score: 1,
         });
       }
-    } catch {
-      // Some collections might not have title/content fields, skip errors
+    } catch { /* unavailable collections are ignored */ }
+  }));
+  try {
+    const projects = await listProjects();
+    for (const project of projects) {
+      if (`${project.name} ${project.description}`.toLowerCase().includes(needle)) {
+        results.push({ id: project.id, collection: 'projects', project_id: project.id, title: project.name, excerpt: project.description || project.github_url || 'Project', score: 1 });
+      }
     }
-  });
-
-  await Promise.all(searchPromises);
-  return results;
+  } catch { /* project lookup is optional */ }
+  return results.slice(0, 24);
 }
-
 // Daemon Status (via ConnectRPC)
 export async function getDaemonStatus(): Promise<DaemonStatus> {
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const token = pb.authStore.token;
+    const token = '';
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}/cortex.v1.DaemonService/Status`, {
       method: 'POST',
@@ -487,7 +483,7 @@ export async function scanProject(projectId: string): Promise<ScanRepoResult> {
 // ── CORTEX API (providers, knowledge graph) ──────────
 async function cortexFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, { headers, ...init });
   if (!res.ok) {
@@ -503,6 +499,9 @@ async function cortexFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+export interface RepositoryLanguage { name: string; bytes: number; percentage: number; }
+export interface RepositoryInsights { project_id: string; language: string; size_bytes: number; files: number; lines_of_code: number; last_commit: string; license: string; available: boolean; languages: RepositoryLanguage[]; }
+export async function getRepositoryInsights(projectId: string): Promise<RepositoryInsights> { return cortexFetch<RepositoryInsights>(`/api/cortex/repository-insights/${projectId}`); }
 export interface ScanRepoResult {
   name: string;
   project_id: string;
@@ -568,7 +567,7 @@ export interface GitHubSyncResult {
 // client, is fully paginated, and avoids browser CORS. Safe to call repeatedly
 // Existing projects are refreshed, while new repositories are imported.
 export async function syncGitHubRepos(): Promise<GitHubSyncResult> {
-  return cortexFetch<GitHubSyncResult>('/api/cortex/github/sync', {
+  return cortexFetch<GitHubSyncResult>('/api/github/sync', {
     method: 'POST',
     body: '{}',
   });
@@ -721,10 +720,7 @@ export interface AgentMemory {
 // with the IDE/client and session that produced them.
 export async function listAgentMemories(projectId: string): Promise<AgentMemory[]> {
   if (!projectId) return [];
-  const res = await pbFetch<PBListResult<AgentMemory>>(
-    `/api/collections/agent_memories/records?sort=-created&perPage=500&filter=(project="${projectId}")`
-  );
-  return res.items;
+  return cortexFetch<AgentMemory[]>(`/api/cortex/agent-memories/${projectId}?limit=500`);
 }
 
 // ── MCP connections ────────────────────────────────────
@@ -767,9 +763,9 @@ export async function deleteMCPConnection(id: string): Promise<{ success: boolea
 
 // ── Reset all data ─────────────────────────────────────
 
-async function pbDelete(collection: string, id: string): Promise<void> {
+async function apiDelete(collection: string, id: string): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = pb.authStore.token;
+  const token = '';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   await fetch(`${API_BASE}/api/collections/${collection}/records/${id}`, {
     method: 'DELETE',
@@ -798,16 +794,16 @@ export async function resetAllData(): Promise<void> {
   ];
   for (const coll of collections) {
     for (let guard = 0; guard < 1000; guard++) {
-      let res: PBListResult<{ id: string }>;
+      let res: PageResult<{ id: string }>;
       try {
-        res = await pbFetch<PBListResult<{ id: string }>>(
+        res = await apiFetch<PageResult<{ id: string }>>(
           `/api/collections/${coll}/records?perPage=200`
         );
       } catch {
         break; // collection missing or not permitted — skip
       }
       if (!res.items.length) break;
-      await Promise.all(res.items.map((it) => pbDelete(coll, it.id).catch(() => {})));
+      await Promise.all(res.items.map((it) => apiDelete(coll, it.id).catch(() => {})));
     }
   }
 }
@@ -858,56 +854,11 @@ export interface AgentInfo {
 }
 
 export async function getActiveAgents(projectId?: string): Promise<AgentInfo[]> {
-  const [vaultEntries, handoffs] = await Promise.all([
-    listVaultEntries(projectId ? { projectId } : undefined),
-    listHandoffs(projectId ? { projectId } : undefined),
-  ]);
-
-  const agentSet = new Map<string, { lastSeen: string; kind: string }>();
-
-  for (const v of vaultEntries) {
-    if (v.source_agent) {
-      const existing = agentSet.get(v.source_agent);
-      if (!existing || v.updated > existing.lastSeen) {
-        agentSet.set(v.source_agent, { lastSeen: v.updated, kind: 'vault' });
-      }
-    }
-  }
-
-  for (const h of handoffs) {
-    for (const agent of [h.from_agent, h.to_agent]) {
-      if (agent) {
-        const existing = agentSet.get(agent);
-        if (!existing || h.updated > existing.lastSeen) {
-          agentSet.set(agent, { lastSeen: h.updated, kind: 'handoff' });
-        }
-      }
-    }
-  }
-
-  const now = Date.now();
-  const agents: AgentInfo[] = [];
-
-  for (const [name, info] of agentSet) {
-    const ageMs = now - new Date(info.lastSeen).getTime();
-    const oneHour = 3600_000;
-    let status: AgentInfo['status'] = 'offline';
-    if (ageMs < oneHour) status = 'active';
-    else if (ageMs < oneHour * 24) status = 'connected';
-    else status = 'idle';
-
-    agents.push({ name, status });
-  }
-
-  // Sort: active first, then connected, then idle, then offline
-  const order: Record<string, number> = { active: 0, connected: 1, idle: 2, offline: 3 };
-  agents.sort((a, b) => (order[a.status] ?? 4) - (order[b.status] ?? 4));
-
-  return agents;
+  if (!projectId) return [];
+  return cortexFetch<AgentInfo[]>(`/api/cortex/agents/${projectId}`);
 }
-
 export async function listProjectActivity(projectId: string, limit = 10): Promise<ActivityLogEntry[]> {
-  const res = await pbFetch<PBListResult<ActivityLogEntry>>(
+  const res = await apiFetch<PageResult<ActivityLogEntry>>(
     `/api/collections/activity_log/records?sort=-created&perPage=${limit}&filter=(project="${projectId}")`
   );
   return res.items;
@@ -978,3 +929,7 @@ export function buildCodeGraphKnowledgeGraph(graph: CodeGraphResult): KnowledgeG
 
 // Export the transport for future ConnectRPC client usage
 export { transport };
+
+
+
+

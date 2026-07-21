@@ -9,7 +9,7 @@
 <p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
   <img alt="SolidJS" src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C?logo=solid&logoColor=white">
-  <img alt="PocketBase" src="https://img.shields.io/badge/PocketBase-embedded-B8DBE4">
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-embedded-B8DBE4">
   <img alt="MCP" src="https://img.shields.io/badge/Model_Context_Protocol-enabled-6C63FF">
   <img alt="Local-first" src="https://img.shields.io/badge/local--first-%E2%9C%94-3DCB6C">
 </p>
@@ -23,7 +23,7 @@ coding tools over the **Model Context Protocol (MCP)** — so every agent, in ev
 full project context and shared memory.
 
 The whole system runs locally as a single Go daemon (`cortexd`) built on
-[PocketBase](https://pocketbase.io), with a [SolidJS](https://www.solidjs.com) web UI. Your code,
+[SQLite](https://sqlite.io), with a [SolidJS](https://www.solidjs.com) web UI. Your code,
 memory, and tokens never leave your machine.
 
 ---
@@ -72,13 +72,13 @@ memory, and tokens never leave your machine.
 │      SolidJS Web UI       │  HTTP   │       AI Clients          │
 │   (Vite dev / embedded)   │◄──────► │  Cursor · VS Code · CLI · │
 └────────────┬──────────────┘         │  Claude · Gemini · ...    │
-             │ PocketBase REST          └────────────┬─────────────┘
+             │ SQLite REST          └────────────┬─────────────┘
              │ + ConnectRPC + /api/cortex             │ MCP (JSON-RPC 2.0 / HTTP)
              ▼                                         ▼
 ┌──────────────────────────────────────────────────────────────┐
 │                      cortexd  (Go daemon)                      │
 │                                                                │
-│  PocketBase (SQLite + auth + REST + router)                    │
+│  SQLite (SQLite + auth + REST + router)                    │
 │  ├─ ConnectRPC services   (project, vault, task, search, ...)  │
 │  ├─ /api/cortex/*         (scan, providers, prompt, graph,     │
 │  │                         code-graph, digest, export, mcp)    │
@@ -100,7 +100,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 | Concern            | Technology |
 |--------------------|------------|
 | Language           | Go 1.25+ |
-| App framework / DB | PocketBase (embedded SQLite, auth, REST, router) |
+| App framework / DB | SQLite (embedded SQLite, auth, REST, router) |
 | RPC                | ConnectRPC (`connectrpc.com/connect`) |
 | Config             | Viper (`cortex.yaml` + `CORTEX_*` env vars) |
 | Logging            | Zerolog |
@@ -118,7 +118,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 | Routing        | `@solidjs/router` |
 | Server state   | TanStack Query (`@tanstack/solid-query`) — keyed, cached, deduped queries + mutations |
 | Client state   | Zustand (`zustand/vanilla` + `persist`, bridged into Solid) for UI preferences |
-| Backend SDK    | `pocketbase` JS client + `fetch` to ConnectRPC / `/api/cortex` |
+| Backend SDK    | `sqlite` JS client + `fetch` to ConnectRPC / `/api/cortex` |
 | Icons          | `lucide-solid` |
 
 > **State management:** remote data lives in a single solid-query cache (`ui/src/api/queries.ts`),
@@ -133,7 +133,7 @@ Everything listens on `http://127.0.0.1:8090` by default.
 CortexMind/
 ├── cmd/
 │   └── cortexd/
-│       └── main.go                 # Daemon entrypoint (loads config, starts PocketBase)
+│       └── main.go                 # Daemon entrypoint (loads config, starts SQLite)
 │
 ├── internal/
 │   ├── analyzer/                   # Deep project analysis
@@ -157,11 +157,11 @@ CortexMind/
 │   │
 │   ├── auth/github.go              # GitHub OAuth hooks + REST client (list/clone repos)
 │   ├── config/config.go            # cortex.yaml + env config loading
-│   ├── daemon/daemon.go            # Wires PocketBase, RPC, /api/cortex, /mcp, watcher
+│   ├── daemon/daemon.go            # Wires SQLite, RPC, /api/cortex, /mcp, watcher
 │   │
 │   ├── db/
 │   │   ├── db.go                   # Activity logging helper
-│   │   └── schema.go               # All PocketBase collections (created on boot)
+│   │   └── schema.go               # All SQLite collections (created on boot)
 │   │
 │   ├── git/sync.go                 # Clone / commit / pull, .cortex/ directory mgmt
 │   │
@@ -203,7 +203,7 @@ CortexMind/
 │   │   │   ├── queryClient.ts      # Shared QueryClient
 │   │   │   ├── settings.ts         # Zustand store — UI preferences (client state)
 │   │   │   ├── auth.tsx            # GitHub OAuth + session
-│   │   │   └── pb.ts               # PocketBase client
+│   │   │   └── pb.ts               # SQLite client
 │   │   ├── pages/
 │   │   │   ├── Dashboard/  Projects/  Repository/  Vaults/  Tasks/  Handoffs/
 │   │   │   ├── Search/  CodeGraph/  AgentMemory/  SessionDigests/
@@ -224,7 +224,7 @@ CortexMind/
 └── README.md
 ```
 
-### Key data collections (PocketBase, auto-created on boot)
+### Key data collections (SQLite, auto-created on boot)
 | Collection        | Purpose |
 |-------------------|---------|
 | `users`           | GitHub-authenticated users (token, preferences / provider keys) |
@@ -297,10 +297,10 @@ go build -o cortexd ./cmd/cortexd
 Once running you have:
 
 - **Web UI / REST API:** http://127.0.0.1:8090
-- **PocketBase Admin:** http://127.0.0.1:8090/_/
+- **SQLite Admin:** http://127.0.0.1:8090/_/
 - **MCP endpoint:** http://127.0.0.1:8090/mcp
 
-### Create an admin (PocketBase superuser)
+### Create an admin (SQLite superuser)
 
 Needed to access the admin UI at `/_/` and configure GitHub OAuth:
 
@@ -340,7 +340,7 @@ overridden by `CORTEX_*` environment variables. Missing config falls back to sen
 server:
   port: 8090
   mcp_port: 8091
-  data_dir: ~/.cortex/pb_data     # SQLite + cloned repos live here
+  data_dir: ~/.cortex/data     # SQLite + cloned repos live here
 
 scanner:
   interval_minutes: 30
@@ -370,7 +370,7 @@ log_level: info
 | `CORTEX_OLLAMA_URL`           | Override Ollama URL |
 | `CORTEX_DATA_DIR`             | Override data directory |
 
-> GitHub OAuth is enabled/configured in the PocketBase admin UI (`/_/` → Settings → Auth providers).
+> GitHub OAuth is enabled/configured in the SQLite admin UI (`/_/` → Settings → Auth providers).
 > **LLM provider keys (Mistral) and embedding settings are configured per-user in the UI** under
 > **Settings → AI Agents**, and stored on the user record — never in `cortex.yaml`.
 
@@ -430,7 +430,7 @@ up to 30 memories, and up to 10 architectural notes.
 
 ## HTTP & MCP API
 
-### `/api/cortex/*` (JSON, Bearer = PocketBase token)
+### `/api/cortex/*` (JSON, Bearer = SQLite token)
 | Method & Path | Description |
 |---------------|-------------|
 | `POST /api/cortex/scan/{project}` | Clone (if needed), index and deeply analyze one project |

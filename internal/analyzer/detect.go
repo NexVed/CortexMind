@@ -96,7 +96,7 @@ var dependencyTable = map[string]depHit{
 	"github.com/gin-gonic/gin": {"framework", "Gin"},
 	"github.com/labstack/echo": {"framework", "Echo"},
 	"github.com/gofiber/fiber": {"framework", "Fiber"},
-	"github.com/pocketbase/pocketbase": {"framework", "PocketBase"},
+	"github.com/sqlite/sqlite": {"framework", "SQLite"},
 	"connectrpc.com/connect":            {"framework", "ConnectRPC"},
 	"gorm.io/gorm":                      {"database", "GORM"},
 	// Rust

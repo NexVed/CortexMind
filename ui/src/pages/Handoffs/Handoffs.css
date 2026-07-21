@@ -202,3 +202,27 @@
   font-size: 12px;
   color: var(--text-muted);
 }
+/* Handoff workspace redesign */
+.handoffs-page { min-height: 100%; padding: 32px 40px 48px; background: transparent; }
+.handoffs-page .page-title-icon { box-shadow: 0 12px 24px rgba(255,117,24,.18); }
+.handoffs-toolbar { gap: 10px; justify-content: initial; padding: 10px; border-radius: 16px; box-shadow: 0 10px 30px rgba(31,35,44,.035); }
+.handoffs-toolbar > :first-child { flex: 1; min-width: 290px; }
+.handoffs-toolbar .search-box { display:flex; align-items:center; gap:8px; width: 275px; height:42px; padding:0 12px; background:transparent; border:1px solid var(--border); border-radius:11px; }
+.handoffs-toolbar .search-box input { min-width:0; border:0; outline:0; background:transparent; font:inherit; color:var(--text-primary); }
+.handoffs-filters { margin-left:auto; padding:3px; background:var(--bg-elevated); border-radius:11px; }
+.handoffs-filters .icon-btn { margin-left:4px; }
+.handoffs-page .empty-state { min-height: 360px; margin-top:20px; padding:48px; border:1px dashed rgba(255,117,24,.33); border-radius:20px; background: var(--bg-surface); }
+.handoffs-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:14px; }
+.handoff-card { min-height:220px; padding:18px; display:flex; flex-direction:column; align-items:stretch; gap:14px; border-radius:16px; }
+.handoff-card-header,.handoff-footer { display:flex; justify-content:space-between; align-items:center; }
+.handoff-agents { width:auto; }
+.handoff-title { margin:0; font-size:16px; letter-spacing:-.015em; }
+.handoff-project { color:var(--text-secondary); font-size:12px; }
+.handoff-meta { margin-top:auto; padding-top:12px; border-top:1px solid var(--border); justify-content:space-between; gap:8px; }
+.meta-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary); }
+.handoff-status { width:auto; height:auto; display:flex; align-items:center; gap:6px; font-size:12px; font-weight:650; color:var(--text-secondary); text-transform:capitalize; }
+.handoff-status .status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); }
+@media(max-width:960px){.handoffs-page{padding:24px}.handoffs-toolbar{flex-wrap:wrap}.handoffs-toolbar > :first-child{min-width:100%}.handoffs-filters{margin-left:0}.handoffs-toolbar .search-box{flex:1}}
+
+
+

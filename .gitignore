@@ -4,9 +4,9 @@ cortexd
 cortex
 /bin/
 
-# Local PocketBase data (also lives at ~/.cortex/pb_data)
-pb_data/
-.cortex/pb_data/
+# Local SQLite data (also lives at ~/.cortex/data)
+data/
+.cortex/data/
 
 # Env / secrets
 .env

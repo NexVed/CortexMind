@@ -505,3 +505,6 @@
   margin-top: 0;
   margin-bottom: 16px;
 }
+/* README assets are served from the repository's raw GitHub path. */
+.readme-content img { max-width: 100%; height: auto; display: block; margin: 16px auto; border-radius: 8px; }
+.language-breakdown { margin-top: 16px; }.language-stack { height: 9px; overflow: hidden; display: flex; border-radius: 999px; background: var(--bg-elevated); }.language-segment { min-width: 2px; height: 100%; }.language-0,.language-dot.language-0{background:#3178c6}.language-1,.language-dot.language-1{background:#f97316}.language-2,.language-dot.language-2{background:#3572A5}.language-3,.language-dot.language-3{background:#a855f7}.language-4,.language-dot.language-4{background:#eab308}.language-5,.language-dot.language-5{background:#22c55e}.language-legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:13px}.language-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary)}.language-item strong{color:var(--text-primary);font-weight:600}.language-dot{width:8px;height:8px;border-radius:50%;flex:none}

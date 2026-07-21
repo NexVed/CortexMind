@@ -40,11 +40,13 @@ const legend = [
 
 export const CodeGraphPage: Component = () => {
   const [error, setError] = createSignal('');
-  const [showPackages, setShowPackages] = createPersistedSignal('code-graph.show-packages', false);
-  const [showSymbols, setShowSymbols] = createPersistedSignal('code-graph.show-symbols', false);
+  const [showPackages, setShowPackages] = createPersistedSignal('code-graph.show-packages.v2', true);
+  const [showSymbols, setShowSymbols] = createPersistedSignal('code-graph.show-symbols.v2', true);
   const MAX_VISIBLE_NODES = 220;
   const [search, setSearch] = createPersistedSignal('code-graph.search', '');
   const [selectedNode, setSelectedNode] = createSignal<CodeGraphNode | null>(null);
+  type GraphFocus = 'dirs' | 'files' | 'functions' | 'classes' | 'packages' | 'internal' | 'external' | 'cycles' | 'orphans';
+  const [focus, setFocus] = createSignal<GraphFocus | null>(null);
 
   const projectsQuery = useProjects();
   const projects = () => projectsQuery.data;
@@ -81,20 +83,85 @@ export const CodeGraphPage: Component = () => {
     return t;
   }
 
+  const cycleNodes = (edges: { source: string; target: string; rel: string }[]) => {
+    const adjacent = new Map<string, string[]>();
+    for (const edge of edges) {
+      if (edge.rel !== 'imports') continue;
+      adjacent.set(edge.source, [...(adjacent.get(edge.source) ?? []), edge.target]);
+    }
+    const visiting = new Set<string>();
+    const visited = new Set<string>();
+    const result = new Set<string>();
+    const visit = (node: string, trail: string[]) => {
+      if (visiting.has(node)) {
+        for (const member of trail.slice(trail.indexOf(node))) result.add(member);
+        return;
+      }
+      if (visited.has(node)) return;
+      visiting.add(node);
+      for (const next of adjacent.get(node) ?? []) visit(next, [...trail, node]);
+      visiting.delete(node);
+      visited.add(node);
+    };
+    for (const node of adjacent.keys()) visit(node, []);
+    return result;
+  };
+
+  const focusedIds = createMemo<Set<string> | null>(() => {
+    const g = graph();
+    const active = focus();
+    if (!g || !active) return null;
+    if (active === 'dirs' || active === 'files' || active === 'functions' || active === 'classes' || active === 'packages') {
+      const type = active === 'dirs' ? 'dir' : active === 'files' ? 'file' : active === 'functions' ? 'function' : active === 'classes' ? 'class' : 'package';
+      return new Set(g.nodes.filter((node) => node.type === type).map((node) => node.id));
+    }
+    if (active === 'orphans') return new Set(g.nodes.filter((node) => node.degree === 0).map((node) => node.id));
+    if (active === 'cycles') return cycleNodes(g.edges);
+    const relationship = active === 'internal' ? 'imports' : 'depends_on';
+    return new Set(g.edges.filter((edge) => edge.rel === relationship).flatMap((edge) => [edge.source, edge.target]));
+  });
+
+  const toggleFocus = (next: GraphFocus) => {
+    if (next === 'functions' || next === 'classes') setShowSymbols(true);
+    if (next === 'packages' || next === 'external') setShowPackages(true);
+    setSelectedNode(null);
+    setFocus((current) => current === next ? null : next);
+  };
   // ── Reactive graph data for the shared ForceGraph ──
   const visibleNodes = createMemo<CodeGraphNode[]>(() => {
     const g = graph();
     if (!g || !g.built) return [];
     const types = visibleTypes(showPackages(), showSymbols());
-    const candidates = g.nodes.filter((n) => types.has(n.type));
+    const ids = focusedIds();
+    const candidates = g.nodes.filter((n) => types.has(n.type) && (!ids || ids.has(n.id)));
     if (candidates.length <= MAX_VISIBLE_NODES) return candidates;
 
-    // Keep directories as landmarks, then show the most connected entities.
-    const anchors = candidates.filter((n) => n.type === 'dir');
-    const ranked = candidates
-      .filter((n) => n.type !== 'dir')
+    const ranked = (type?: string) => candidates
+      .filter((node) => !type || node.type === type)
       .sort((a, b) => b.degree - a.degree || a.id.localeCompare(b.id));
-    return [...anchors, ...ranked].slice(0, MAX_VISIBLE_NODES);
+
+    // The overview must represent every graph layer. A pure degree ranking
+    // favours files, which previously hid functions/classes on first load.
+    if (!focus()) {
+      const selected: CodeGraphNode[] = [];
+      const selectedIDs = new Set<string>();
+      const add = (nodes: CodeGraphNode[], limit: number) => {
+        for (const node of nodes) {
+          if (selected.length >= MAX_VISIBLE_NODES || selectedIDs.has(node.id)) continue;
+          selectedIDs.add(node.id);
+          selected.push(node);
+          if (--limit === 0) break;
+        }
+      };
+      add(ranked('dir'), 60);
+      add(ranked('package'), 25);
+      add(ranked('function'), 75);
+      add(ranked('class'), 45);
+      add(ranked(), MAX_VISIBLE_NODES - selected.length);
+      return selected;
+    }
+
+    return ranked().slice(0, MAX_VISIBLE_NODES);
   });
 
   const includedIds = createMemo(() => new Set(visibleNodes().map((n) => n.id)));
@@ -181,6 +248,7 @@ export const CodeGraphPage: Component = () => {
               onChange={(id) => {
                 setSelectedProject(id);
                 setSelectedNode(null);
+                setFocus(null);
               }}
               placeholder="Choose a project…"
             />
@@ -224,16 +292,16 @@ export const CodeGraphPage: Component = () => {
 
           {/* Stats bar */}
           <Show when={stats() && graph()?.built}>
-            <div class="cg-stats" role="list">
-              <div class="cg-stat" role="listitem"><Folder size={14} /> {stats()!.dirs} dirs</div>
-              <div class="cg-stat" role="listitem"><FileCode2 size={14} /> {stats()!.files} files</div>
-              <div class="cg-stat" role="listitem"><FunctionSquare size={14} /> {stats()!.functions} functions</div>
-              <div class="cg-stat" role="listitem"><Box size={14} /> {stats()!.classes} classes</div>
-              <div class="cg-stat" role="listitem"><Package size={14} /> {stats()!.packages} packages</div>
-              <div class="cg-stat accent" role="listitem">{stats()!.internal_deps} internal deps</div>
-              <div class="cg-stat" role="listitem">{stats()!.external_deps} external deps</div>
-              <div class="cg-stat" role="listitem">{stats()!.cycles} cycles</div>
-              <div class="cg-stat" role="listitem">{stats()!.orphans} orphans</div>
+            <div class="cg-stats" role="list" aria-label="Graph filters">
+              <button class={`cg-stat ${focus() === 'dirs' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'dirs'} onClick={() => toggleFocus('dirs')}><Folder size={14} /> {stats()!.dirs} dirs</button>
+              <button class={`cg-stat ${focus() === 'files' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'files'} onClick={() => toggleFocus('files')}><FileCode2 size={14} /> {stats()!.files} files</button>
+              <button class={`cg-stat ${focus() === 'functions' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'functions'} onClick={() => toggleFocus('functions')}><FunctionSquare size={14} /> {stats()!.functions} functions</button>
+              <button class={`cg-stat ${focus() === 'classes' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'classes'} onClick={() => toggleFocus('classes')}><Box size={14} /> {stats()!.classes} classes</button>
+              <button class={`cg-stat ${focus() === 'packages' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'packages'} onClick={() => toggleFocus('packages')}><Package size={14} /> {stats()!.packages} packages</button>
+              <button class={`cg-stat ${focus() === 'internal' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'internal'} onClick={() => toggleFocus('internal')}>{stats()!.internal_deps} internal deps</button>
+              <button class={`cg-stat ${focus() === 'external' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'external'} onClick={() => toggleFocus('external')}>{stats()!.external_deps} external deps</button>
+              <button class={`cg-stat ${focus() === 'cycles' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'cycles'} disabled={stats()!.cycles === 0} onClick={() => toggleFocus('cycles')}>{stats()!.cycles} cycles</button>
+              <button class={`cg-stat ${focus() === 'orphans' ? 'active' : ''}`} type="button" role="listitem" aria-pressed={focus() === 'orphans'} onClick={() => toggleFocus('orphans')}>{stats()!.orphans} orphans</button>
             </div>
           </Show>
         </aside>

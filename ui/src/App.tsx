@@ -104,9 +104,6 @@ const RootShell: Component<{ children?: any }> = (props) => {
   return (
     <>
       <GlobalShortcuts />
-      <Show when={isWailsDesktop()}>
-        <WindowTitleBar />
-      </Show>
       {props.children}
     </>
   );

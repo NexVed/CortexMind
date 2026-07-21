@@ -44,6 +44,11 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
+Function .onInit
+  ; A running older build keeps its own embedded UI and local auth session alive.
+  ; Stop it before files are replaced so this installer can start the new shell.
+  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /F /IM CortexMind.exe'
+FunctionEnd
 Section "Install"
   SetOutPath "$INSTDIR"
   File "..\dist\${EXE}"
