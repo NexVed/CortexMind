@@ -1,17 +1,65 @@
 import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { Minus, Square, X } from 'lucide-solid';
+import { Github, Minus, Square, X } from 'lucide-solid';
 import { useAuth } from '../../api/auth';
 import { emitWindowControl, isWailsDesktop } from '../../api/desktop';
 import './Login.css';
 
-const GitHubIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>;
+const GitHubIcon = () => <Github size={18} aria-hidden="true" />;
 
 export const LoginPage: Component = () => {
-  const { loginWithGitHub, continueOffline, isAuthenticated, isLoading, error } = useAuth();
+  const { loginWithGitHub, continueOffline, isAuthenticated, isLoading, error, deviceCode, verificationURL } = useAuth();
   const navigate = useNavigate();
   const [offlineName, setOfflineName] = createSignal('');
-  onMount(() => { if (isAuthenticated()) navigate('/', { replace: true }); });
-  const go = async (action: () => Promise<void>) => { try { await action(); if (isAuthenticated()) navigate('/', { replace: true }); } catch { /* rendered below */ } };
-  return <div class="login-page"><Show when={isWailsDesktop()}><header class="login-windowbar"><div class="login-windowbar-brand"><img src="/logo.png" alt="" /> <span>CortexMind</span></div><div class="login-window-controls"><button title="Minimize" aria-label="Minimize" onClick={() => emitWindowControl('wnd:minimise')}><Minus size={15} /></button><button title="Maximize" aria-label="Maximize" onClick={() => emitWindowControl('wnd:toggle-maximise')}><Square size={12} /></button><button class="login-window-close" title="Close" aria-label="Close" onClick={() => emitWindowControl('wnd:close')}><X size={16} /></button></div></header></Show><main class="login-card"><img src="/logowithname.png" alt="CortexMind" class="login-logo"/><p class="login-sub">Choose how you want to use this local workspace.</p><button class="login-github-btn" onClick={() => void go(loginWithGitHub)} disabled={isLoading()}><Show when={!isLoading()} fallback={<span class="login-spinner"/>}><GitHubIcon/></Show>{isLoading() ? 'Waiting for GitHub...' : 'Connect GitHub account'}</button><div class="login-divider">or stay offline</div><form class="login-form" onSubmit={(event) => { event.preventDefault(); void go(() => continueOffline(offlineName().trim())); }}><input class="login-input" value={offlineName()} onInput={(event) => setOfflineName(event.currentTarget.value)} placeholder="Your workspace name" autocomplete="name" disabled={isLoading()}/><button class="login-local-btn" type="submit" disabled={isLoading() || !offlineName().trim()}>Create offline workspace</button></form><Show when={error()}><div class="login-error" role="alert">{error()}</div></Show></main></div>;
+
+  onMount(() => {
+    if (isAuthenticated()) navigate('/', { replace: true });
+  });
+
+  const go = async (action: () => Promise<void>) => {
+    try {
+      await action();
+      if (isAuthenticated()) navigate('/', { replace: true });
+    } catch {
+      // The authentication provider renders the error.
+    }
+  };
+
+  return <div class="login-page">
+    <Show when={isWailsDesktop()}>
+      <header class="login-windowbar">
+        <div class="login-windowbar-brand"><img src="/logo.png" alt="" /> <span>CortexMind</span></div>
+        <div class="login-window-controls">
+          <button title="Minimize" aria-label="Minimize" onClick={() => emitWindowControl('wnd:minimise')}><Minus size={15} /></button>
+          <button title="Maximize" aria-label="Maximize" onClick={() => emitWindowControl('wnd:toggle-maximise')}><Square size={12} /></button>
+          <button class="login-window-close" title="Close" aria-label="Close" onClick={() => emitWindowControl('wnd:close')}><X size={16} /></button>
+        </div>
+      </header>
+    </Show>
+    <main class="login-card">
+      <img src="/logowithname.png" alt="CortexMind" class="login-logo" />
+      <p class="login-sub">Choose how you want to use this local workspace.</p>
+      <button class="login-github-btn" onClick={() => void go(loginWithGitHub)} disabled={isLoading()}>
+        <Show when={!isLoading()} fallback={<span class="login-spinner" />}><GitHubIcon /></Show>
+        {isLoading() ? 'Waiting for GitHub...' : 'Connect GitHub account'}
+      </button>
+      <Show when={deviceCode()}>
+        <div class="login-device-flow">
+          <span>Enter this code on GitHub</span>
+          <code>{deviceCode()}</code>
+          <a href={verificationURL()} target="_blank" rel="noreferrer">Open GitHub verification</a>
+        </div>
+      </Show>
+      <div class="login-divider">or stay offline</div>
+      <form class="login-form" onSubmit={(event) => {
+        event.preventDefault();
+        void go(() => continueOffline(offlineName().trim()));
+      }}>
+        <input class="login-input" value={offlineName()} onInput={(event) => setOfflineName(event.currentTarget.value)}
+          placeholder="Your workspace name" autocomplete="name" disabled={isLoading()} />
+        <button class="login-local-btn" type="submit" disabled={isLoading() || !offlineName().trim()}>Create offline workspace</button>
+      </form>
+      <Show when={error()}><div class="login-error" role="alert">{error()}</div></Show>
+    </main>
+  </div>;
 };

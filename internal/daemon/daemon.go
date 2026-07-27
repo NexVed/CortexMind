@@ -31,7 +31,7 @@ func New(cfg *config.Config) *Daemon {
 	if err != nil {
 		panic(fmt.Errorf("open local SQLite: %w", err))
 	}
-	onboarding := services.Onboarding{Users: repositories.UserRepository{DB: db}, GitHub: gh.Client{ClientID: cfg.GitHub.ClientID, ClientSecret: cfg.GitHub.ClientSecret}, DB: db}
+	onboarding := services.Onboarding{Users: repositories.UserRepository{DB: db}, GitHub: gh.Client{ClientID: cfg.GitHub.ClientID}, DB: db}
 	return &Daemon{Config: cfg, DB: db, Auth: &auth.Service{ClientID: cfg.GitHub.ClientID, GitHub: onboarding, Tokens: keychain.Store{}}}
 }
 func (d *Daemon) Start() error {
@@ -92,7 +92,7 @@ func (d *Daemon) session(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err, http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": u})
+	writeJSON(w, http.StatusOK, map[string]any{"user": u, "auth_error": d.Auth.AuthenticationError()})
 }
 func (d *Daemon) startGitHub(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

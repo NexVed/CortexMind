@@ -16,14 +16,28 @@ import (
 const protocolVersion = "2025-03-26"
 
 type Server struct {
-	graphs      services.CodeGraphService
-	context     services.AgentContextService
-	connections repositories.MCPConnectionRepository
+	graphs       services.CodeGraphService
+	context      services.AgentContextService
+	connections  repositories.MCPConnectionRepository
+	intelligence services.ProjectIntelligenceService
 }
 
 func New(db *database.DB) *Server {
 	graphs := services.CodeGraphService{DB: db}
-	return &Server{graphs: graphs, context: services.AgentContextService{DB: db, Graphs: graphs}, connections: repositories.MCPConnectionRepository{DB: db}}
+	return &Server{graphs: graphs, context: services.AgentContextService{DB: db, Graphs: graphs}, connections: repositories.MCPConnectionRepository{DB: db}, intelligence: services.ProjectIntelligenceService{DB: db}}
+}
+
+func (s *Server) initializationInstructions(projectID string) string {
+	base := "Before working, call cortex_get_system_prompt and cortex_get_context. Use cortex_get_code_graph for code structure. Persist useful work with cortex_save_memory and cortex_summarize_session."
+	prompt, err := s.intelligence.SystemPrompt(projectID)
+	if err != nil {
+		return base
+	}
+	text := stringValue(prompt["prompt"])
+	if text == "" {
+		return base
+	}
+	return base + "\n\nProject system prompt (follow these project-specific instructions):\n" + text
 }
 
 type request struct {
@@ -82,7 +96,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	switch req.Method {
 	case "initialize":
-		s.writeResult(w, req.ID, map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"tools": map[string]bool{"listChanged": false}}, "serverInfo": map[string]string{"name": "cortexMind", "version": "0.1.0"}, "instructions": "Use cortex_get_context first, then call cortex_get_code_graph for code structure. Persist useful work with cortex_save_memory and cortex_summarize_session."})
+		s.writeResult(w, req.ID, map[string]any{"protocolVersion": protocolVersion, "capabilities": map[string]any{"tools": map[string]bool{"listChanged": false}}, "serverInfo": map[string]string{"name": "cortexMind", "version": "0.1.0"}, "instructions": s.initializationInstructions(connection.ProjectID)})
 	case "ping":
 		s.writeResult(w, req.ID, map[string]any{})
 	case "tools/list":
@@ -159,6 +173,8 @@ func (s *Server) executeTool(name, projectID string, args map[string]any) (any, 
 		return s.graphs.Context(projectID, services.CodeGraphQuery{NodeID: input.NodeID, Query: input.Query, NodeTypes: input.NodeTypes, Relationships: input.Relationships, MaxNodes: input.MaxNodes})
 	case "cortex_get_context":
 		return s.context.GetContext(projectID, integer(args["memory_limit"]))
+	case "cortex_get_system_prompt":
+		return s.intelligence.SystemPrompt(projectID)
 	case "cortex_save_memory":
 		memory := map[string]any{"title": stringValue(args["title"]), "content": stringValue(args["content"]), "category": stringValue(args["category"]), "session_id": stringValue(args["session_id"]), "agent": stringValue(args["agent"]), "owner": stringValue(args["agent"]), "ide": stringValue(args["ide"]), "client_name": stringValue(args["ide"]), "tags": args["tags"]}
 		return s.context.SaveMemory(projectID, memory)
@@ -211,6 +227,7 @@ func integer(value any) int        { number, _ := value.(float64); return int(nu
 func toolDefinitions() []any {
 	return []any{
 		tool("cortex_get_context", "Load the bound project's profile, code-graph statistics, and recent memories. Call this first.", map[string]any{"memory_limit": integerSchema("Maximum recent memories, default 25.")}, nil),
+		tool("cortex_get_system_prompt", "Load the saved project-specific coding-agent system prompt. Follow it before making changes.", map[string]any{}, nil),
 		tool("cortex_get_code_graph", "Query the persisted code graph for files, functions, classes, packages, and dependencies.", map[string]any{"node_id": stringSchema("Optional node ID; returns direct relationships."), "query": stringSchema("Case-insensitive label/path search."), "node_types": enumArray("dir", "file", "function", "class", "package"), "relationships": enumArray("contains", "defines", "imports", "depends_on"), "max_nodes": integerSchema("Maximum nodes, default 250.")}, nil),
 		tool("cortex_save_memory", "Persist a project memory so later coding sessions can recall progress, decisions, notes, context, or handoffs.", map[string]any{"title": stringSchema("Short memory title."), "content": stringSchema("Memory content."), "category": enumSchema("context", "progress", "decision", "note", "handoff"), "session_id": stringSchema("Optional client session ID."), "agent": stringSchema("Optional agent name."), "ide": stringSchema("Optional IDE/client name."), "tags": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}}, []string{"content"}),
 		tool("cortex_list_memories", "List recent stored project memories from prior agents and IDE sessions.", map[string]any{"limit": integerSchema("Maximum memories, default 50.")}, nil),

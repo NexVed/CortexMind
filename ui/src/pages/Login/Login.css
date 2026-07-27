@@ -291,3 +291,31 @@
 .login-window-controls button:hover { background: #f0f0f2; color: #1a1a1e; }
 .login-window-controls .login-window-close:hover { background: #e81123; color: #fff; }
 .login-page:has(.login-windowbar) { padding-top: 46px; }
+/* GitHub Device Flow */
+.login-device-flow {
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.login-device-flow code {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.login-device-flow a {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}

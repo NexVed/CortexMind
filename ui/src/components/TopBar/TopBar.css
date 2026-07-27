@@ -421,5 +421,3 @@
   .topbar-actions { gap: 0; }
   .topbar-icon-btn { width: 28px; height: 28px; }
 }
-/* Native desktop frame owns window controls and resizing. */
-.topbar-window-controls { display: none !important; }

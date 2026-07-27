@@ -38,6 +38,7 @@ memory, and tokens never leave your machine.
 - [Quick Start](#quick-start)
 - [Running the Server](#running-the-server)
 - [Running the UI](#running-the-ui)
+- [Building the Windows App](#building-the-windows-app)
 - [Configuration](#configuration)
 - [The Workflow](#the-workflow)
 - [HTTP & MCP API](#http--mcp-api)
@@ -62,6 +63,10 @@ memory, and tokens never leave your machine.
    (readable markdown + a compact agent-to-agent JSON) for fast hand-off to the next agent.
 6. **Shared, persistent memory** — Whenever you return to a project (in any tool), the full
    accumulated memory is available, and can be exported to `.cortex/` and committed to the repo.
+7. **Notification center** - The top-bar bell shows recent activity, highlights unread items, and
+   supports marking notifications as read.
+8. **Flexible workspace layout**  Collapse or expand the sidebar with the visible toggle or
+   Ctrl+B (Cmd+B on macOS); the preference is persisted locally with the rest of the UI settings.
 
 ---
 
@@ -331,6 +336,21 @@ npm run build        # tsc --noEmit + vite build → outputs static assets to ui
 
 ---
 
+## Building the Windows App
+
+The Windows build embeds the production UI into the Go binary, so rebuild the executable
+after changing the frontend. From the repository root:
+
+```powershell
+./build-windows.ps1
+```
+
+The script builds `ui/dist`, copies the assets into `internal/web/dist`, and produces
+`CortexMind.exe`. Close any running CortexMind process before launching the rebuilt binary.
+
+The separate TanStack landing-page repository is deployed independently to Vercel; it is not
+the embedded CortexMind UI.
+
 ## Configuration
 
 Configuration is read from `cortex.yaml` (searched in `.`, `.cortex/`, and `~/.cortex/`) and
@@ -365,12 +385,10 @@ log_level: info
 ### Secrets / environment variables
 | Variable | Purpose |
 |----------|---------|
-| `CORTEX_GITHUB_CLIENT_ID`     | GitHub OAuth client id |
-| `CORTEX_GITHUB_CLIENT_SECRET` | GitHub OAuth client secret |
 | `CORTEX_OLLAMA_URL`           | Override Ollama URL |
 | `CORTEX_DATA_DIR`             | Override data directory |
 
-> GitHub OAuth is enabled/configured in the SQLite admin UI (`/_/` → Settings → Auth providers).
+> GitHub sign-in uses Device Flow. The desktop app includes its public Client ID and users approve a one-time code at GitHub; no Client Secret or OAuth environment variables are required.
 > **LLM provider keys (Mistral) and embedding settings are configured per-user in the UI** under
 > **Settings → AI Agents**, and stored on the user record — never in `cortex.yaml`.
 
@@ -389,9 +407,7 @@ log_level: info
    "characterization."
 6. **Integrations (MCP Server)** page → **New Connection** → pick the project + your AI client →
    copy the generated, client-specific config into your IDE/CLI.
-7. Work as usual. Your AI calls `cortex_get_context` to load the characterization + prior memory,
-   `cortex_save_memory` to record progress/decisions, and `cortex_summarize_session` at the end to
-   hand off. Next session — in any tool — picks up where you left off.
+7. On MCP connection, CORTEX sends the saved project system prompt in its startup instructions. The agent can also call `cortex_get_system_prompt` to refresh it, then `cortex_get_context` for memory. Use `cortex_save_memory` to record progress and `cortex_summarize_session` at the end for the next session.
 
 For repository sharing, use the compact export by default. It commits durable vault entries and
 session digests while keeping raw per-session agent memories in local storage. Add `?full=true` only
@@ -448,9 +464,9 @@ up to 30 memories, and up to 10 architectural notes.
 | `GET /api/cortex/mcp/connections/{id}/status` | Connection status (last used, connected) |
 
 ### `/mcp` (MCP, JSON-RPC 2.0 over HTTP, Bearer = MCP connection token)
-**Tools:** `cortex_get_context` · `cortex_save_memory` · `cortex_list_memories` · `cortex_get_tasks` · `cortex_summarize_session`
-**Prompts:** `project_characterization`
-**Resources:** `cortex://project/characterization` · `cortex://project/memory`
+**Tools:** `cortex_get_system_prompt` - `cortex_get_context` - `cortex_get_code_graph` - `cortex_save_memory` - `cortex_list_memories` - `cortex_get_tasks` - `cortex_summarize_session`
+
+The connection-specific MCP startup instructions include the saved project system prompt. Use `cortex_get_system_prompt` again whenever the prompt may have changed.
 
 ---
 

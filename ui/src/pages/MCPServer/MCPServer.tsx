@@ -42,6 +42,7 @@ import { selectedProjectId } from '../../api/projectSelection';
 
 const availableTools = [
   { name: 'cortex_get_context', desc: "Load the project's profile, graph statistics and recent AI memory. Call this first.", category: 'MEMORY', icon: BrainCircuit, colorClass: 'purple' },
+  { name: 'cortex_get_system_prompt', desc: 'Load and follow the saved project-specific instructions for the coding agent.', category: 'INSTRUCTIONS', icon: BookOpen, colorClass: 'pink' },
   { name: 'cortex_get_code_graph', desc: 'Query files, functions, classes, packages, and internal or external dependencies.', category: 'CODE GRAPH', icon: Box, colorClass: 'indigo' },
   { name: 'cortex_save_memory', desc: 'Persist progress, decisions, notes, context or handoffs for the next AI session.', category: 'MEMORY', icon: Brain, colorClass: 'blue' },
   { name: 'cortex_list_memories', desc: 'List stored memories for this project from all prior agent sessions.', category: 'MEMORY', icon: BookOpen, colorClass: 'indigo' },

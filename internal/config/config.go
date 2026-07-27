@@ -12,13 +12,13 @@ import (
 // Config is the root configuration for the CORTEX daemon, loaded from
 // cortex.yaml and overridable via environment variables.
 type Config struct {
-	Server  ServerConfig  `mapstructure:"server"`
-	GitHub  GitHubConfig  `mapstructure:"github"`
-	Scanner ScannerConfig `mapstructure:"scanner"`
-	Search  SearchConfig  `mapstructure:"search"`
-	Sync    SyncConfig    `mapstructure:"sync"`
-	Env     string        `mapstructure:"env"`
-	LogLevel string       `mapstructure:"log_level"`
+	Server   ServerConfig  `mapstructure:"server"`
+	GitHub   GitHubConfig  `mapstructure:"github"`
+	Scanner  ScannerConfig `mapstructure:"scanner"`
+	Search   SearchConfig  `mapstructure:"search"`
+	Sync     SyncConfig    `mapstructure:"sync"`
+	Env      string        `mapstructure:"env"`
+	LogLevel string        `mapstructure:"log_level"`
 }
 
 type ServerConfig struct {
@@ -27,9 +27,11 @@ type ServerConfig struct {
 	DataDir string `mapstructure:"data_dir"`
 }
 
+// DefaultGitHubClientID is public by design and identifies the CortexMind desktop OAuth app.
+const DefaultGitHubClientID = "Ov23liIGsZJLehp5Dez2"
+
 type GitHubConfig struct {
-	ClientID     string `mapstructure:"client_id"`
-	ClientSecret string `mapstructure:"client_secret"`
+	ClientID string `mapstructure:"client_id"`
 }
 
 type ScannerConfig struct {
@@ -82,7 +84,6 @@ func Load() *Config {
 
 	// Explicit env bindings for the documented secrets.
 	_ = v.BindEnv("github.client_id", "CORTEX_GITHUB_CLIENT_ID")
-	_ = v.BindEnv("github.client_secret", "CORTEX_GITHUB_CLIENT_SECRET")
 	_ = v.BindEnv("env", "CORTEX_ENV")
 	_ = v.BindEnv("log_level", "CORTEX_LOG_LEVEL")
 	_ = v.BindEnv("search.ollama_url", "CORTEX_OLLAMA_URL")
@@ -104,6 +105,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", d.Server.Port)
 	v.SetDefault("server.mcp_port", d.Server.MCPPort)
 	v.SetDefault("server.data_dir", d.Server.DataDir)
+	v.SetDefault("github.client_id", d.GitHub.ClientID)
 	v.SetDefault("scanner.interval_minutes", d.Scanner.IntervalMinutes)
 	v.SetDefault("scanner.max_file_size_kb", d.Scanner.MaxFileSizeKB)
 	v.SetDefault("scanner.ignored_dirs", d.Scanner.IgnoredDirs)
@@ -124,6 +126,7 @@ func defaultConfig() *Config {
 			MCPPort: 8091,
 			DataDir: "~/.cortex",
 		},
+		GitHub: GitHubConfig{ClientID: DefaultGitHubClientID},
 		Scanner: ScannerConfig{
 			IntervalMinutes: 30,
 			MaxFileSizeKB:   500,

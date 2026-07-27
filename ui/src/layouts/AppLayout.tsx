@@ -1,5 +1,4 @@
-import { Component, JSX, Show } from 'solid-js';
-import { isWailsDesktop } from '../api/desktop';
+import { Component, JSX } from 'solid-js';
 import { Sidebar } from '../components/Sidebar/Sidebar';
 import { TopBar } from '../components/TopBar/TopBar';
 import { WindowResizeHandles } from '../components/WindowResizeHandles/WindowResizeHandles';
@@ -29,6 +28,7 @@ export const AppLayout: Component<AppLayoutProps> = (props) => {
           </div>
         </div>
       </div>
+      <WindowResizeHandles />
     </div>
   );
 };

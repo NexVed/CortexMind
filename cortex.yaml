@@ -1,7 +1,5 @@
 # CORTEX daemon configuration.
-# Secrets (GitHub OAuth) are loaded from environment variables:
-#   CORTEX_GITHUB_CLIENT_ID, CORTEX_GITHUB_CLIENT_SECRET
-# The official desktop build supplies its GitHub OAuth client identity.
+# GitHub Device Flow uses the public client ID below. No client secret is needed.
 
 server:
   port: 8090
@@ -10,7 +8,6 @@ server:
 
 github:
   client_id: "Ov23liIGsZJLehp5Dez2"
-  client_secret: "58afe5d8e52d2057b174052ed27fdd5ce3589748"
 
 scanner:
   interval_minutes: 30
