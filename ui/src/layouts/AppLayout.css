@@ -72,3 +72,67 @@
     width: var(--sidebar-collapsed);
   }
 }
+/* Responsive application shell */
+@media (max-width: 1439px) {
+  .app-content-area { padding: 0 var(--s3) var(--s3) var(--s2); }
+  .app-main-content { padding: var(--s5); }
+  .app-right-panel { width: 280px; min-width: 280px; }
+}
+
+@media (max-width: 1199px) {
+  .app-content-area { padding: 0 var(--s2) var(--s2); }
+  .app-main-content { padding: var(--s4); }
+  .app-page-card { border-radius: var(--r-lg); }
+}
+
+@media (max-width: 1023px) {
+  .app-layout .sidebar {
+    width: var(--sidebar-collapsed);
+    min-width: var(--sidebar-collapsed);
+    padding: 16px 8px;
+  }
+  .app-layout .sidebar-brand {
+    justify-content: center;
+    min-height: 40px;
+    margin-bottom: 18px;
+    padding: 0;
+  }
+  .app-layout .sidebar .sidebar-logo-img,
+  .app-layout .sidebar .sidebar-nav-label,
+  .app-layout .sidebar .sidebar-nav-badge,
+  .app-layout .sidebar .sidebar-account-copy,
+  .app-layout .sidebar .sidebar-account-heading,
+  .app-layout .sidebar .sidebar-account-id,
+  .app-layout .sidebar .sidebar-account-logout span { display: none; }
+  .app-layout .sidebar .sidebar-logo-mark { display: block; }
+  .app-layout .sidebar .sidebar-nav { gap: 6px; }
+  .app-layout .sidebar .sidebar-nav-item {
+    width: 44px;
+    height: 36px;
+    justify-content: center;
+    padding: 0;
+  }
+  .app-layout .sidebar .sidebar-bottom { border-top: 0; padding-top: 0; }
+}
+
+@media (max-width: 767px) {
+  .app-content-area { padding: 0; }
+  .app-page-card { border: 0; border-radius: 0; }
+  .app-main-content { padding: var(--s3); }
+  .app-layout .sidebar {
+    width: 60px;
+    min-width: 60px;
+    padding: 12px 6px;
+  }
+  .app-layout .sidebar .sidebar-nav-item { width: 48px; }
+}
+
+@media (max-width: 479px) {
+  .app-main-content { padding: var(--s2); }
+  .app-layout .sidebar {
+    width: 52px;
+    min-width: 52px;
+    padding-inline: 2px;
+  }
+  .app-layout .sidebar .sidebar-nav-item { width: 48px; }
+}

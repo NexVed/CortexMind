@@ -50,6 +50,23 @@ export function isWailsDesktop(): boolean {
 
 // emitWindowControl fires a bare Wails event that the Go side listens for to
 // minimise / maximise / close the native window. No-op in a browser.
-export function emitWindowControl(name: 'wnd:minimise' | 'wnd:toggle-maximise' | 'wnd:close'): void {
+export function emitWindowControl(name: 'wnd:minimise' | 'wnd:toggle-maximise' | 'wnd:toggle-fullscreen' | 'wnd:close'): void {
   bridge()?.invoke?.(`wails:event:emit:${name}`);
+}
+
+export type WindowResizeEdge =
+  | 'n-resize'
+  | 'ne-resize'
+  | 'e-resize'
+  | 'se-resize'
+  | 's-resize'
+  | 'sw-resize'
+  | 'w-resize'
+  | 'nw-resize';
+
+// Ask Wails to begin a native OS resize gesture from the selected edge/corner.
+// This is only available in the desktop shell, so it is intentionally a no-op
+// when the UI is opened in a browser.
+export function startWindowResize(edge: WindowResizeEdge): void {
+  bridge()?.invoke?.(`wails:resize:${edge}`);
 }

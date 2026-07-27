@@ -1,0 +1,52 @@
+.window-resize-handles {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.window-resize-handle {
+  position: fixed;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.window-resize-handle--n-resize,
+.window-resize-handle--s-resize {
+  left: 10px;
+  right: 10px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.window-resize-handle--n-resize { top: 0; }
+.window-resize-handle--s-resize { bottom: 0; }
+
+.window-resize-handle--e-resize,
+.window-resize-handle--w-resize {
+  top: 10px;
+  bottom: 10px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.window-resize-handle--e-resize { right: 0; }
+.window-resize-handle--w-resize { left: 0; }
+
+.window-resize-handle--ne-resize,
+.window-resize-handle--se-resize,
+.window-resize-handle--sw-resize,
+.window-resize-handle--nw-resize {
+  width: 12px;
+  height: 12px;
+}
+
+.window-resize-handle--ne-resize,
+.window-resize-handle--sw-resize { cursor: nesw-resize; }
+.window-resize-handle--nw-resize,
+.window-resize-handle--se-resize { cursor: nwse-resize; }
+.window-resize-handle--ne-resize { top: 0; right: 0; }
+.window-resize-handle--se-resize { right: 0; bottom: 0; }
+.window-resize-handle--sw-resize { bottom: 0; left: 0; }
+.window-resize-handle--nw-resize { top: 0; left: 0; }

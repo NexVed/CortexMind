@@ -1,6 +1,8 @@
-import { Component, JSX } from 'solid-js';
+import { Component, JSX, Show } from 'solid-js';
+import { isWailsDesktop } from '../api/desktop';
 import { Sidebar } from '../components/Sidebar/Sidebar';
 import { TopBar } from '../components/TopBar/TopBar';
+import { WindowResizeHandles } from '../components/WindowResizeHandles/WindowResizeHandles';
 import './AppLayout.css';
 
 interface AppLayoutProps {

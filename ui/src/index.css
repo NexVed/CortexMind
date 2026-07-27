@@ -74,7 +74,7 @@
 
   /* --- Layout --- */
   --sidebar-width: 220px;
-  --sidebar-collapsed: 60px;
+  --sidebar-collapsed: 68px;
   --topbar-height: 52px;
   --statusbar-height: 36px;
 }
@@ -448,6 +448,8 @@ img {
 [data-sidebar-collapsed="true"] .sidebar {
   width: var(--sidebar-collapsed);
   min-width: var(--sidebar-collapsed);
+  padding-left: var(--s2);
+  padding-right: var(--s2);
 }
 
 [data-sidebar-collapsed="true"] .sidebar .sidebar-nav-item {
@@ -460,6 +462,12 @@ img {
 [data-sidebar-collapsed="true"] .sidebar .sidebar-logo-img {
   display: none;
 }
+
+[data-sidebar-collapsed="true"] .sidebar .sidebar-account-heading span, [data-sidebar-collapsed="true"] .sidebar .sidebar-account-copy, [data-sidebar-collapsed="true"] .sidebar .sidebar-account-id, [data-sidebar-collapsed="true"] .sidebar .sidebar-account-logout span { opacity: 0; max-width: 0; overflow: hidden; }
+[data-sidebar-collapsed="true"] .sidebar .sidebar-account { padding: var(--s2); }
+[data-sidebar-collapsed="true"] .sidebar .sidebar-account-heading, [data-sidebar-collapsed="true"] .sidebar .sidebar-account-logout { justify-content: center; }
+[data-sidebar-collapsed="true"] .sidebar .sidebar-account-profile { justify-content: center; }
+[data-sidebar-collapsed="true"] .sidebar .sidebar-account-logout { padding-left: 0; padding-right: 0; }
 
 [data-sidebar-collapsed="true"] .sidebar .sidebar-brand {
   justify-content: center;

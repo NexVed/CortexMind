@@ -1,6 +1,7 @@
 import { Component, onCleanup, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { cycleTheme, toggleSidebarCollapsed, isMac } from '../api/settings';
+import { emitWindowControl, isWailsDesktop } from '../api/desktop';
 
 // GlobalShortcuts registers the keyboard shortcuts advertised on the Settings
 // page. It renders nothing; it must live inside the Router so useNavigate works.
@@ -8,6 +9,19 @@ export const GlobalShortcuts: Component = () => {
   const navigate = useNavigate();
 
   const handler = (e: KeyboardEvent) => {
+    if (e.key === 'F11') {
+      e.preventDefault();
+      if (isWailsDesktop()) {
+        emitWindowControl('wnd:toggle-fullscreen');
+      } else {
+        const fullscreen = document.fullscreenElement
+          ? document.exitFullscreen()
+          : document.documentElement.requestFullscreen();
+        void fullscreen.catch(() => {});
+      }
+      return;
+    }
+
     const mod = isMac ? e.metaKey : e.ctrlKey;
     if (!mod) return;
     const key = e.key.toLowerCase();

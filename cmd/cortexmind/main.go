@@ -84,11 +84,12 @@ func main() {
 	})
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "CortexMind",
-		Width:     1400,
-		Height:    900,
-		MinWidth:  960,
-		MinHeight: 600,
+		Title:         "CortexMind",
+		Width:         1400,
+		Height:        900,
+		MinWidth:      720,
+		MinHeight:     480,
+		DisableResize: false,
 		// Mark the local daemon page as a desktop navigation so the titlebar always renders.
 		URL:              "http://" + addr + "?desktop=1",
 		BackgroundColour: application.NewRGB(13, 17, 23),
@@ -106,8 +107,12 @@ func main() {
 		},
 	})
 
+	// Explicitly retain native edge resizing for the frameless desktop shell.
+	window.SetResizable(true)
+
 	// Window controls emitted by the custom titlebar.
 	maximised := false
+	fullscreen := false
 	app.Event.On("wnd:minimise", func(*application.CustomEvent) { window.Minimise() })
 	app.Event.On("wnd:toggle-maximise", func(*application.CustomEvent) {
 		if maximised {
@@ -116,6 +121,14 @@ func main() {
 			window.Maximise()
 		}
 		maximised = !maximised
+	})
+	app.Event.On("wnd:toggle-fullscreen", func(*application.CustomEvent) {
+		if fullscreen {
+			window.UnFullscreen()
+		} else {
+			window.Fullscreen()
+		}
+		fullscreen = !fullscreen
 	})
 	app.Event.On("wnd:close", func(*application.CustomEvent) { window.Close() })
 
