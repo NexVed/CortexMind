@@ -7,9 +7,11 @@
 <p align="center"><strong>Git syncs code. CortexMind syncs understanding.</strong></p>
 
 <p align="center">
-  <video src="cortexmind.mp4" controls muted playsinline aria-label="CortexMind demo"></video>
-  <br>
-  <a href="cortexmind.mp4">Watch the CortexMind demo</a>
+  <a href="https://github.com/NexVed/CortexMind/blob/master/cortexmind.mp4">
+    <img src="ui/public/logowithname-readme.png" alt="Watch the CortexMind demo" width="380" />
+  </a>
+  <br />
+  <a href="https://github.com/NexVed/CortexMind/blob/master/cortexmind.mp4">▶ Watch the CortexMind demo</a>
 </p>
 
 <p align="center">
