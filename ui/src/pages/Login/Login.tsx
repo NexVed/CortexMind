@@ -2,12 +2,13 @@ import { Component, Show, createSignal, onMount } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { Github, Minus, Square, X } from 'lucide-solid';
 import { useAuth } from '../../api/auth';
-import { emitWindowControl, isWailsDesktop } from '../../api/desktop';
+import { desktopPlatform, emitWindowControl, isWailsDesktop } from '../../api/desktop';
 import './Login.css';
 
 const GitHubIcon = () => <Github size={18} aria-hidden="true" />;
 
 export const LoginPage: Component = () => {
+	const platform = desktopPlatform();
   const { loginWithGitHub, continueOffline, isAuthenticated, isLoading, error, deviceCode, verificationURL } = useAuth();
   const navigate = useNavigate();
   const [offlineName, setOfflineName] = createSignal('');
@@ -28,12 +29,20 @@ export const LoginPage: Component = () => {
   return <div class="login-page">
     <Show when={isWailsDesktop()}>
       <header class="login-windowbar">
+		<Show when={platform === 'darwin'}>
+		  <div class="login-mac-controls" aria-label="Window controls">
+			<button class="login-mac-btn close" title="Close" aria-label="Close" onClick={() => emitWindowControl('wnd:close')} />
+			<button class="login-mac-btn minimise" title="Minimise" aria-label="Minimise" onClick={() => emitWindowControl('wnd:minimise')} />
+			<button class="login-mac-btn maximise" title="Fullscreen" aria-label="Fullscreen" onClick={() => emitWindowControl('wnd:toggle-fullscreen')} />
+		  </div>
+		</Show>
         <div class="login-windowbar-brand"><img src="/logo.png" alt="" /> <span>CortexMind</span></div>
-        <div class="login-window-controls">
+        <Show when={platform !== 'darwin'}><div class={`login-window-controls ${platform === 'linux' ? 'linux' : ''}`}>
           <button title="Minimize" aria-label="Minimize" onClick={() => emitWindowControl('wnd:minimise')}><Minus size={15} /></button>
           <button title="Maximize" aria-label="Maximize" onClick={() => emitWindowControl('wnd:toggle-maximise')}><Square size={12} /></button>
           <button class="login-window-close" title="Close" aria-label="Close" onClick={() => emitWindowControl('wnd:close')}><X size={16} /></button>
         </div>
+		</Show>
       </header>
     </Show>
     <main class="login-card">

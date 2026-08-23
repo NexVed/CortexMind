@@ -150,6 +150,13 @@
   -webkit-app-region: no-drag;
 }
 
+/* macOS uses the familiar left-aligned traffic lights. They are emitted only
+   by macOS desktop builds; Windows and Linux never render these controls. */
+.wtb-mac-controls { display: flex; gap: 8px; margin-right: 12px; -webkit-app-region: no-drag; app-region: no-drag; }
+.wtb-mac-btn { width: 12px; height: 12px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; }
+.wtb-mac-btn--close { background: #ff5f57; }.wtb-mac-btn--minimise { background: #febc2e; }.wtb-mac-btn--maximise { background: #28c840; }
+.wtb-controls--linux { border-radius: 6px; overflow: hidden; background: rgba(255,255,255,.06); }
+
 .wtb-btn {
   width: 48px;
   height: var(--titlebar-h, 48px);

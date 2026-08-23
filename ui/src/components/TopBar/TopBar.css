@@ -400,6 +400,27 @@
 .topbar-window-controls button:hover { background: var(--bg-elevated); color: var(--text-primary); }
 .topbar-window-controls .topbar-window-close:hover { background: #e81123; color: #fff; }
 
+/* Desktop controls are styled per native release. macOS keeps its traffic-light
+   affordances, while Linux uses compact, neutral titlebar actions. */
+:root[data-desktop-platform="darwin"] .topbar-window-controls {
+  align-self: center;
+  gap: 8px;
+  margin-left: 8px;
+  margin-right: calc(var(--s6) * -1);
+}
+:root[data-desktop-platform="darwin"] .topbar-window-controls button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  color: transparent;
+}
+:root[data-desktop-platform="darwin"] .topbar-window-controls button:nth-child(1) { background: #febc2e; }
+:root[data-desktop-platform="darwin"] .topbar-window-controls button:nth-child(2) { background: #28c840; }
+:root[data-desktop-platform="darwin"] .topbar-window-controls button:nth-child(3) { background: #ff5f57; }
+:root[data-desktop-platform="darwin"] .topbar-window-controls button:hover { color: transparent; filter: brightness(.9); }
+:root[data-desktop-platform="linux"] .topbar-window-controls { gap: 2px; }
+:root[data-desktop-platform="linux"] .topbar-window-controls button { width: 38px; }
+
 .topbar-window-controls { display: flex; align-self: stretch; margin-right: calc(var(--s6) * -1); }
 .topbar-window-controls button { width: 46px; border-radius: 0; color: var(--text-secondary); display: grid; place-items: center; }
 .topbar-window-controls button:hover { background: var(--bg-elevated); color: var(--text-primary); }

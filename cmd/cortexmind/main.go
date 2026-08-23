@@ -23,6 +23,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/NexVed/Cortex/internal/config"
@@ -91,7 +92,7 @@ func main() {
 		MinHeight:     480,
 		DisableResize: false,
 		// Mark the local daemon page as a desktop navigation so the titlebar always renders.
-		URL:              "http://" + addr + "?desktop=1",
+		URL:              "http://" + addr + "?desktop=1&platform=" + runtime.GOOS,
 		BackgroundColour: application.NewRGB(13, 17, 23),
 		// Frameless: the UI draws its own titlebar (WindowTitleBar.tsx). On
 		// Windows 11 frameless windows still get DWM rounded corners + shadow.

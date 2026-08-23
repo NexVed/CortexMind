@@ -1,4 +1,5 @@
 import { Component, JSX, createContext, createSignal, useContext, onMount } from 'solid-js';
+import { isWailsDesktop } from './desktop';
 
 export interface CortexUser { id: string; email: string; displayName: string; githubUsername: string; githubAvatarUrl: string; githubId: string; provider: string; offline: boolean; }
 
@@ -73,10 +74,15 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
     setVerificationURL('');
     setLoading(true);
     try {
-      const start = await request('/api/auth/github/start', { method: 'POST' }) as DeviceStartResponse;
+      const endpoint = isWailsDesktop()
+        ? '/api/auth/github/start?open_browser=1'
+        : '/api/auth/github/start';
+      const start = await request(endpoint, { method: 'POST' }) as DeviceStartResponse;
       setDeviceCode(start.user_code);
       setVerificationURL(start.url);
-      window.open(start.url, '_blank', 'noopener,noreferrer');
+      // Web builds retain the normal browser behaviour. The native desktop
+      // shell asks the daemon to use the user's default browser instead.
+      if (!isWailsDesktop()) window.open(start.url, '_blank', 'noopener,noreferrer');
 
       const deadline = Date.now() + Math.max(60, start.expires_in || 900) * 1000;
       while (!user() && Date.now() < deadline) {

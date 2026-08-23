@@ -7,6 +7,12 @@
 <p align="center"><strong>Git syncs code. CortexMind syncs understanding.</strong></p>
 
 <p align="center">
+  <video src="cortexmind.mp4" controls muted playsinline aria-label="CortexMind demo"></video>
+  <br>
+  <a href="cortexmind.mp4">Watch the CortexMind demo</a>
+</p>
+
+<p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
   <img alt="SolidJS" src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C?logo=solid&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-embedded-B8DBE4">
@@ -39,6 +45,7 @@ memory, and tokens never leave your machine.
 - [Running the Server](#running-the-server)
 - [Running the UI](#running-the-ui)
 - [Building the Windows App](#building-the-windows-app)
+- [Building macOS and Linux Releases](#building-macos-and-linux-releases)
 - [Configuration](#configuration)
 - [The Workflow](#the-workflow)
 - [HTTP & MCP API](#http--mcp-api)
@@ -350,6 +357,30 @@ The script builds `ui/dist`, copies the assets into `internal/web/dist`, and pro
 
 The separate TanStack landing-page repository is deployed independently to Vercel; it is not
 the embedded CortexMind UI.
+
+## Building macOS and Linux Releases
+
+Desktop builds are native to their target operating system: build the macOS release on macOS and
+the Linux release on Linux. Each build contains only the controls for that platform (macOS traffic
+lights or Linux minimise/maximise/close controls). GitHub sign-in opens in the user's default
+browser on every desktop release.
+
+```bash
+# macOS (run on a Mac; requires Xcode Command Line Tools)
+xcode-select --install
+./build/build-desktop.sh
+# output: build/dist/CortexMind
+
+# Linux (run on Linux; install your distribution's WebKitGTK development package first)
+# Debian/Ubuntu:
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+./build/build-desktop.sh
+# output: build/dist/CortexMind
+```
+
+The same script detects the host platform and refuses to cross-package it: distribute the binary
+produced on macOS only as the macOS release, and the binary produced on Linux only as the Linux
+release.
 
 ## Configuration
 

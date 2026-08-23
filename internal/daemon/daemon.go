@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/NexVed/Cortex/internal/auth"
+	"github.com/NexVed/Cortex/internal/browser"
 	"github.com/NexVed/Cortex/internal/config"
 	"github.com/NexVed/Cortex/internal/database"
 	gh "github.com/NexVed/Cortex/internal/github"
@@ -103,6 +104,14 @@ func (d *Daemon) startGitHub(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, err, http.StatusBadRequest)
 		return
+	}
+	// The native desktop shell requests this explicitly so GitHub opens in the
+	// user's configured browser, never in its embedded webview.
+	if r.URL.Query().Get("open_browser") == "1" {
+		if err := browser.OpenURL(v.URL); err != nil {
+			// Keep the device-flow response available as a manual fallback when
+			// the operating system cannot launch its configured browser.
+		}
 	}
 	writeJSON(w, http.StatusOK, v)
 }

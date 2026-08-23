@@ -290,6 +290,10 @@
 .login-window-controls button { width: 46px; display: grid; place-items: center; color: #666; }
 .login-window-controls button:hover { background: #f0f0f2; color: #1a1a1e; }
 .login-window-controls .login-window-close:hover { background: #e81123; color: #fff; }
+.login-window-controls.linux { border-radius: 6px; overflow: hidden; background: #f4f4f5; }
+.login-mac-controls { display: flex; gap: 8px; margin-right: 12px; -webkit-app-region: no-drag; app-region: no-drag; }
+.login-mac-btn { width: 12px; height: 12px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; }
+.login-mac-btn.close { background: #ff5f57; }.login-mac-btn.minimise { background: #febc2e; }.login-mac-btn.maximise { background: #28c840; }
 .login-page:has(.login-windowbar) { padding-top: 46px; }
 /* GitHub Device Flow */
 .login-device-flow {

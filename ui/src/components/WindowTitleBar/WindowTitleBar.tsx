@@ -1,6 +1,6 @@
-import { Component, onMount, onCleanup } from 'solid-js';
+import { Component, onMount, onCleanup, Show } from 'solid-js';
 import { Minus, Square, X, Search, Command } from 'lucide-solid';
-import { emitWindowControl } from '../../api/desktop';
+import { desktopPlatform, emitWindowControl } from '../../api/desktop';
 import './WindowTitleBar.css';
 
 // WindowTitleBar is the custom titlebar for the frameless native desktop
@@ -12,6 +12,7 @@ import './WindowTitleBar.css';
 // itself by setting the global --titlebar-h custom property; every full-height
 // layout subtracts that so nothing hides underneath.
 export const WindowTitleBar: Component = () => {
+	const platform = desktopPlatform();
   onMount(() => {
     // Increased height for a premium functional bar
     document.documentElement.style.setProperty('--titlebar-h', '48px');
@@ -28,6 +29,13 @@ export const WindowTitleBar: Component = () => {
   return (
     <header class="wtb" onDblClick={() => emitWindowControl('wnd:toggle-maximise')}>
       <div class="wtb-left">
+		<Show when={platform === 'darwin'}>
+		  <div class="wtb-mac-controls" aria-label="Window controls">
+			<button class="wtb-mac-btn wtb-mac-btn--close" title="Close" aria-label="Close" onClick={() => emitWindowControl('wnd:close')} />
+			<button class="wtb-mac-btn wtb-mac-btn--minimise" title="Minimise" aria-label="Minimise" onClick={() => emitWindowControl('wnd:minimise')} />
+			<button class="wtb-mac-btn wtb-mac-btn--maximise" title="Fullscreen" aria-label="Fullscreen" onClick={() => emitWindowControl('wnd:toggle-fullscreen')} />
+		  </div>
+		</Show>
         <div class="wtb-brand">
           <div class="wtb-logo-container">
             <img src="/logo.png" alt="" class="wtb-logo" />
@@ -48,7 +56,8 @@ export const WindowTitleBar: Component = () => {
       </div>
 
       <div class="wtb-right">
-        <div class="wtb-controls">
+        <Show when={platform !== 'darwin'}>
+        <div class={`wtb-controls ${platform === 'linux' ? 'wtb-controls--linux' : ''}`}>
           <button
             class="wtb-btn"
             title="Minimise"
@@ -74,6 +83,7 @@ export const WindowTitleBar: Component = () => {
             <X size={15} />
           </button>
         </div>
+		</Show>
       </div>
     </header>
   );

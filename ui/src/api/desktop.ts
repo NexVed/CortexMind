@@ -48,9 +48,29 @@ export function isWailsDesktop(): boolean {
   return _isDesktop();
 }
 
+export type DesktopPlatform = 'windows' | 'darwin' | 'linux' | 'web';
+
+// The native shell supplies its build target explicitly. User-agent detection
+// remains only as a useful fallback for development builds.
+export function desktopPlatform(): DesktopPlatform {
+  const platform = new URLSearchParams(window.location.search).get('platform');
+  if (platform === 'windows' || platform === 'darwin' || platform === 'linux') return platform;
+  if (!isWailsDesktop()) return 'web';
+  if (/mac/i.test(navigator.platform)) return 'darwin';
+  if (/linux/i.test(navigator.platform)) return 'linux';
+  return 'windows';
+}
+
+if (typeof document !== 'undefined') {
+  document.documentElement.dataset.desktopPlatform = desktopPlatform();
+}
+
 // emitWindowControl fires a bare Wails event that the Go side listens for to
 // minimise / maximise / close the native window. No-op in a browser.
 export function emitWindowControl(name: 'wnd:minimise' | 'wnd:toggle-maximise' | 'wnd:toggle-fullscreen' | 'wnd:close'): void {
+  if (name === 'wnd:toggle-maximise' && desktopPlatform() === 'darwin') {
+    name = 'wnd:toggle-fullscreen';
+  }
   bridge()?.invoke?.(`wails:event:emit:${name}`);
 }
 
