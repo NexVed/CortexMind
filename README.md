@@ -7,14 +7,6 @@
 <p align="center"><strong>Git syncs code. CortexMind syncs understanding.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/NexVed/CortexMind/blob/master/cortexmind.mp4">
-    <img src="ui/public/logowithname-readme.png" alt="Watch the CortexMind demo" width="380" />
-  </a>
-  <br />
-  <a href="https://github.com/NexVed/CortexMind/blob/master/cortexmind.mp4">▶ Watch the CortexMind demo</a>
-</p>
-
-<p align="center">
   <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
   <img alt="SolidJS" src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C?logo=solid&logoColor=white">
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-embedded-B8DBE4">
