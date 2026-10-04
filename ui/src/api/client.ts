@@ -1,18 +1,19 @@
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { createClient } from '@connectrpc/connect';
+import { API_BASE, getLocalToken, localFetch } from './local';
 
 // ── Transport ──────────────────────────────────────────
 
 // In dev, Vite proxies /cortex.v1.* requests to the backend.
 // In production, ConnectRPC is served on the same local origin.
-const baseUrl = import.meta.env.VITE_API_URL || '';
+const baseUrl = API_BASE;
 
 const transport = createConnectTransport({
   baseUrl,
   // Inject the local SQLite API auth token on every RPC call.
   interceptors: [
     (next) => async (req) => {
-      const token = '';
+      const token = getLocalToken();
       if (token) {
         req.header.set('Authorization', `Bearer ${token}`);
       }
@@ -40,17 +41,15 @@ interface PageResult<T> {
   items: T[];
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8090';
-
 async function apiFetch<T>(path: string): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  const token = '';
+  const token = getLocalToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  const res = await fetch(`${API_BASE}${path}`, { headers });
+  const res = await localFetch(`${API_BASE}${path}`, { headers });
   if (!res.ok) {
     throw new Error(`API error: ${res.status} ${res.statusText}`);
   }
@@ -177,7 +176,7 @@ export async function createProject(data: {
   github_url?: string;
 }): Promise<Project> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const owner = undefined;
   const body = {
@@ -187,7 +186,7 @@ export async function createProject(data: {
     icon_color: colorFromName(data.name),
     ...(owner ? { owner } : {}),
   };
-  const res = await fetch(`${API_BASE}/api/projects`, {
+  const res = await localFetch(`${API_BASE}/api/projects`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -226,9 +225,9 @@ export async function updateTask(
   data: Partial<Task>
 ): Promise<Task> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}/api/collections/tasks/records/${id}`, {
+  const res = await localFetch(`${API_BASE}/api/collections/tasks/records/${id}`, {
     method: 'PATCH',
     headers,
     body: JSON.stringify(data),
@@ -246,7 +245,7 @@ export async function createTask(data: {
   assigned_to?: string;
 }): Promise<Task> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const owner = undefined;
   const body = {
@@ -255,7 +254,7 @@ export async function createTask(data: {
     ...data,
     ...(owner ? { owner } : {}),
   };
-  const res = await fetch(`${API_BASE}/api/collections/tasks/records`, {
+  const res = await localFetch(`${API_BASE}/api/collections/tasks/records`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -285,7 +284,7 @@ export async function createHandoff(data: {
   included_files?: string[];
 }): Promise<Handoff> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const owner = undefined;
   const body = {
@@ -295,7 +294,7 @@ export async function createHandoff(data: {
     prompt_preview: `# Handoff: ${data.title}\n\nFrom: ${data.from_agent} → ${data.to_agent}\n\n${data.context}`,
     ...(owner ? { owner } : {}),
   };
-  const res = await fetch(`${API_BASE}/api/collections/handoffs/records`, {
+  const res = await localFetch(`${API_BASE}/api/collections/handoffs/records`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -329,7 +328,7 @@ export async function createVaultEntry(data: {
   is_shared?: boolean;
 }): Promise<VaultEntry> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const owner = undefined;
   const body = {
@@ -337,7 +336,7 @@ export async function createVaultEntry(data: {
     ...data,
     ...(owner ? { owner } : {}),
   };
-  const res = await fetch(`${API_BASE}/api/collections/vault_entries/records`, {
+  const res = await localFetch(`${API_BASE}/api/collections/vault_entries/records`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
@@ -440,16 +439,15 @@ export async function searchAll(query: string, scope?: string[]): Promise<Search
   } catch { /* project lookup is optional */ }
   return results.slice(0, 24);
 }
-// Daemon Status (via ConnectRPC)
+// Daemon status is served by the same authenticated REST API as the UI.
 export async function getDaemonStatus(): Promise<DaemonStatus> {
   try {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    const token = '';
+    const token = getLocalToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch(`${API_BASE}/cortex.v1.DaemonService/Status`, {
-      method: 'POST',
+    const res = await localFetch(`${API_BASE}/api/cortex/status`, {
+      method: 'GET',
       headers,
-      body: '{}',
     });
     if (!res.ok) throw new Error('Daemon status failed');
     const data = await res.json();
@@ -483,9 +481,9 @@ export async function scanProject(projectId: string): Promise<ScanRepoResult> {
 // ── CORTEX API (providers, knowledge graph) ──────────
 async function cortexFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
+  const token = getLocalToken();
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${API_BASE}${path}`, { headers, ...init });
+  const res = await localFetch(`${API_BASE}${path}`, { headers, ...init });
   if (!res.ok) {
     let msg = `${res.status} ${res.statusText}`;
     try {
@@ -502,6 +500,31 @@ async function cortexFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export interface RepositoryLanguage { name: string; bytes: number; percentage: number; }
 export interface RepositoryInsights { project_id: string; language: string; size_bytes: number; files: number; lines_of_code: number; last_commit: string; license: string; available: boolean; languages: RepositoryLanguage[]; }
 export async function getRepositoryInsights(projectId: string): Promise<RepositoryInsights> { return cortexFetch<RepositoryInsights>(`/api/cortex/repository-insights/${projectId}`); }
+
+export interface RepositoryView {
+  repo: { full_name: string; private: boolean; default_branch: string; subscribers_count: number; forks_count: number; stargazers_count: number };
+  commit: any;
+  files: { name: string; type: string; path: string }[];
+  readme_html: string;
+  readme_path: string;
+}
+
+export async function getRepositoryView(projectId: string): Promise<RepositoryView> {
+  return cortexFetch<RepositoryView>(`/api/github/repositories/${encodeURIComponent(projectId)}/view`);
+}
+
+export async function getRepositoryImage(projectId: string, path: string, ref: string): Promise<string> {
+  const query = new URLSearchParams({ path, ref });
+  const response = await localFetch(`${API_BASE}/api/github/repositories/${encodeURIComponent(projectId)}/image?${query}`);
+  if (!response.ok) throw new Error('Repository image could not be loaded');
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
 export interface ScanRepoResult {
   name: string;
   project_id: string;
@@ -745,7 +768,7 @@ export async function listMCPConnections(): Promise<MCPConnection[]> {
 }
 
 export async function createMCPConnection(data: {
-  project_id?: string;
+  project_id: string;
   ide?: string;
   label?: string;
 }): Promise<MCPConnection> {
@@ -761,51 +784,10 @@ export async function deleteMCPConnection(id: string): Promise<{ success: boolea
   });
 }
 
-// ── Reset all data ─────────────────────────────────────
-
-async function apiDelete(collection: string, id: string): Promise<void> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  const token = '';
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  await fetch(`${API_BASE}/api/collections/${collection}/records/${id}`, {
-    method: 'DELETE',
-    headers,
-  });
-}
-
-// resetAllData wipes every CORTEX record owned by the current user. Deleting a
-// project cascades to its project-scoped children (file_index, scan_results,
-// code_graphs, etc.), so projects go first; the remaining owner-scoped
-// collections are cleared directly.
-// ponytail: sequential first-page-until-empty wipe (global, no batching) —
-// fine for a local single-user DB; switch to a bulk server endpoint if the
-// data set ever grows large.
+// Reset is a checked server operation that also revokes MCP credentials.
 export async function resetAllData(): Promise<void> {
-  const collections = [
-    'projects', // cascades to project-scoped children
-    'vault_entries',
-    'tasks',
-    'handoffs',
-    'agent_memories',
-    'session_digests',
-    'activity_log',
-    'search_history',
-    'mcp_tokens',
-  ];
-  for (const coll of collections) {
-    for (let guard = 0; guard < 1000; guard++) {
-      let res: PageResult<{ id: string }>;
-      try {
-        res = await apiFetch<PageResult<{ id: string }>>(
-          `/api/collections/${coll}/records?perPage=200`
-        );
-      } catch {
-        break; // collection missing or not permitted — skip
-      }
-      if (!res.items.length) break;
-      await Promise.all(res.items.map((it) => apiDelete(coll, it.id).catch(() => {})));
-    }
-  }
+  const result = await cortexFetch<{ success: boolean }>('/api/cortex/reset', { method: 'POST', body: '{}' });
+  if (!result.success) throw new Error('The server did not confirm the data reset.');
 }
 
 export async function getMCPConnectionStatus(id: string): Promise<MCPConnection> {

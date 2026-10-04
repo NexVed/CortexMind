@@ -19,13 +19,14 @@
   --accent-soft: #FDE8EF;
 
   position: relative;
-  min-height: calc(100vh - var(--titlebar-h, 0px));
-  margin-top: var(--titlebar-h, 0px);
+  min-height: 100vh;
+  height: 100vh;
   width: 100vw;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--s6);
+  overflow-y: auto;
   background: var(--bg-base);
   /* Whisper-soft highlight — depth without noise. */
   background-image: radial-gradient(
@@ -40,6 +41,7 @@
 .login-card {
   width: 100%;
   max-width: 400px;
+  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -294,7 +296,7 @@
 .login-mac-controls { display: flex; gap: 8px; margin-right: 12px; -webkit-app-region: no-drag; app-region: no-drag; }
 .login-mac-btn { width: 12px; height: 12px; border: 0; border-radius: 50%; padding: 0; cursor: pointer; }
 .login-mac-btn.close { background: #ff5f57; }.login-mac-btn.minimise { background: #febc2e; }.login-mac-btn.maximise { background: #28c840; }
-.login-page:has(.login-windowbar) { padding-top: 46px; }
+.login-page:has(.login-windowbar) { padding-top: 70px; }
 /* GitHub Device Flow */
 .login-device-flow {
   width: 100%;
@@ -318,8 +320,12 @@
   letter-spacing: 0.12em;
 }
 
-.login-device-flow a {
+.login-device-flow button {
   color: var(--accent);
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  align-self: flex-start;
 }

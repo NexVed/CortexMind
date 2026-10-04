@@ -1,7 +1,6 @@
 import { Component, JSX } from 'solid-js';
 import { Sidebar } from '../components/Sidebar/Sidebar';
 import { TopBar } from '../components/TopBar/TopBar';
-import { WindowResizeHandles } from '../components/WindowResizeHandles/WindowResizeHandles';
 import './AppLayout.css';
 
 interface AppLayoutProps {
@@ -28,7 +27,6 @@ export const AppLayout: Component<AppLayoutProps> = (props) => {
           </div>
         </div>
       </div>
-      <WindowResizeHandles />
     </div>
   );
 };

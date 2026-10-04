@@ -2,571 +2,305 @@
   <img src="ui/public/logowithname-readme.png" alt="CortexMind" width="380" />
 </p>
 
-<h1 align="center">CortexMind — The Shared Brain For AI Development</h1>
+# CortexMind
 
-<p align="center"><strong>Git syncs code. CortexMind syncs understanding.</strong></p>
+CortexMind is a local desktop workspace for repository context, code graphs, tasks,
+knowledge, and shared AI session memory. It includes a Go daemon, a SolidJS UI, and
+an MCP server. GitHub authentication uses Device Flow and opens the verification
+page in your operating system's default browser.
 
-<p align="center">
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
-  <img alt="SolidJS" src="https://img.shields.io/badge/SolidJS-TypeScript-2C4F7C?logo=solid&logoColor=white">
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-embedded-B8DBE4">
-  <img alt="MCP" src="https://img.shields.io/badge/Model_Context_Protocol-enabled-6C63FF">
-  <img alt="Local-first" src="https://img.shields.io/badge/local--first-%E2%9C%94-3DCB6C">
-</p>
+## What works
 
----
+- Import GitHub repositories, including private repositories authorized by your account.
+- Create projects with a local directory and scan them while offline.
+- Manually scan source files and build graphs of files, symbols, packages, and dependencies.
+- View GitHub repository metadata, files, and README content through the authenticated backend.
+- Save tasks, handoffs, vault entries, agent memories, and session digests locally.
+- Generate a local system prompt from project memory and selected tasks and knowledge.
+- Connect an MCP client using a token restricted to one project.
+- Resize the Windows desktop window from any edge or corner, maximize it, or use fullscreen.
 
-**CortexMind** is a **local-first AI development companion**. It scans your GitHub
-repositories, builds a knowledge graph of each project (tech stack, authentication, features,
-structure), generates a tailored **system prompt** per project, and exposes everything to your AI
-coding tools over the **Model Context Protocol (MCP)** — so every agent, in every IDE, starts with
-full project context and shared memory.
+Scanning, prompts, and digests currently use local heuristics. Provider preferences
+can be saved securely, but cloud enrichment, semantic embeddings, automatic file
+watching, repository export/push, and automatic updates are not active in the daemon.
+Some settings are stored preferences for those future integrations. Daemon status
+reports the active capabilities instead of treating a saved preference as running.
 
-The whole system runs locally as a single Go daemon (`cortexd`) built on
-[SQLite](https://sqlite.io), with a [SolidJS](https://www.solidjs.com) web UI. Your code,
-memory, and tokens never leave your machine.
+Project data is stored in SQLite. GitHub, Mistral, and local API credentials are kept
+in the operating system credential store: Windows Credential Manager, macOS
+Keychain, or the Linux Secret Service. GitHub requests send the GitHub token only to
+GitHub; AI clients receive only the project context exposed by their MCP connection.
 
----
+## Requirements
 
-## Table of Contents
+- Go 1.25 or later.
+- Node.js 18 or later and npm.
+- Windows 10/11 with the Microsoft Edge WebView2 runtime for the desktop app.
+- NSIS is optional and is used only to generate the Windows installer.
+- Linux needs a working Secret Service/keyring for saved credentials.
 
-- [What It Does](#what-it-does)
-- [Architecture](#architecture)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
-- [Running the Server](#running-the-server)
-- [Running the UI](#running-the-ui)
-- [Building the Windows App](#building-the-windows-app)
-- [Building macOS and Linux Releases](#building-macos-and-linux-releases)
-- [Linux AppImage (universal)](#linux-appimage-universal)
-- [Configuration](#configuration)
-- [The Workflow](#the-workflow)
-- [HTTP & MCP API](#http--mcp-api)
-- [Supported AI Clients](#supported-ai-clients)
-- [Troubleshooting](#troubleshooting)
+## Install dependencies
 
----
+From the repository root in PowerShell:
 
-## What It Does
-
-1. **Scan GitHub repos** — Sign in with GitHub, then scan any repo. CortexMind clones it, indexes
-   files/symbols, and analyzes the **tech stack, authentication approach, features, project
-   structure, and API endpoints**, persisting a **knowledge graph** into local storage.
-2. **Build a code graph** — Compile the indexed files into a persistent codebase-memory graph
-   (directories, files, symbols, packages and their dependencies) that agents can query.
-3. **Generate a system prompt** — For any scanned project, generate a project-specific agent
-   "characterization" using Mistral or Ollama (with a heuristic fallback when no LLM is configured).
-4. **Connect your AI tools via MCP** — Create a per-IDE authorized connection. The IDE loads the
-   project characterization plus the memory of previous AI sessions, and writes new memory back as
-   it works — tagged by which IDE/client and session produced it.
-5. **Compress sessions into digests** — Roll a session's memories into a shareable summary
-   (readable markdown + a compact agent-to-agent JSON) for fast hand-off to the next agent.
-6. **Shared, persistent memory** — Whenever you return to a project (in any tool), the full
-   accumulated memory is available, and can be exported to `.cortex/` and committed to the repo.
-7. **Notification center** - The top-bar bell shows recent activity, highlights unread items, and
-   supports marking notifications as read.
-8. **Flexible workspace layout**  Collapse or expand the sidebar with the visible toggle or
-   Ctrl+B (Cmd+B on macOS); the preference is persisted locally with the rest of the UI settings.
-
----
-
-## Architecture
-
-```
-┌──────────────────────────┐         ┌──────────────────────────┐
-│      SolidJS Web UI       │  HTTP   │       AI Clients          │
-│   (Vite dev / embedded)   │◄──────► │  Cursor · VS Code · CLI · │
-└────────────┬──────────────┘         │  Claude · Gemini · ...    │
-             │ SQLite REST          └────────────┬─────────────┘
-             │ + ConnectRPC + /api/cortex             │ MCP (JSON-RPC 2.0 / HTTP)
-             ▼                                         ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      cortexd  (Go daemon)                      │
-│                                                                │
-│  SQLite (SQLite + auth + REST + router)                    │
-│  ├─ ConnectRPC services   (project, vault, task, search, ...)  │
-│  ├─ /api/cortex/*         (scan, providers, prompt, graph,     │
-│  │                         code-graph, digest, export, mcp)    │
-│  └─ /mcp                  (MCP server, token-authorized)       │
-│                                                                │
-│  Subsystems:                                                   │
-│   Scanner · Analyzer · Code Graph · Git Sync · Search ·        │
-│   Vector/Embeddings · LLM (Mistral / Ollama) · File Watcher    │
-└──────────────────────────────────────────────────────────────┘
-```
-
-Everything listens on `http://127.0.0.1:8090` by default.
-
----
-
-## Technology Stack
-
-### Backend (`cortexd`)
-| Concern            | Technology |
-|--------------------|------------|
-| Language           | Go 1.25+ |
-| App framework / DB | SQLite (embedded SQLite, auth, REST, router) |
-| RPC                | ConnectRPC (`connectrpc.com/connect`) |
-| Config             | Viper (`cortex.yaml` + `CORTEX_*` env vars) |
-| Logging            | Zerolog |
-| Git                | go-git (clone, commit, pull) |
-| File watching      | fsnotify |
-| Code analysis      | Regex-based symbol / dependency / auth detection |
-| LLM                | Mistral API, Ollama (chat + embeddings) |
-| Vectors (optional) | Ollama embeddings + LanceDB sidecar |
-
-### Frontend (`ui/`)
-| Concern        | Technology |
-|----------------|------------|
-| Framework      | SolidJS + TypeScript |
-| Build          | Vite |
-| Routing        | `@solidjs/router` |
-| Server state   | TanStack Query (`@tanstack/solid-query`) — keyed, cached, deduped queries + mutations |
-| Client state   | Zustand (`zustand/vanilla` + `persist`, bridged into Solid) for UI preferences |
-| Backend SDK    | `sqlite` JS client + `fetch` to ConnectRPC / `/api/cortex` |
-| Icons          | `lucide-solid` |
-
-> **State management:** remote data lives in a single solid-query cache (`ui/src/api/queries.ts`),
-> and device-level UI preferences (theme, layout, scan/export defaults) live in a persisted Zustand
-> store (`ui/src/api/settings.ts`).
-
----
-
-## Project Structure
-
-```
-CortexMind/
-├── cmd/
-│   └── cortexd/
-│       └── main.go                 # Daemon entrypoint (loads config, starts SQLite)
-│
-├── internal/
-│   ├── analyzer/                   # Deep project analysis
-│   │   ├── analyzer.go             #   Orchestration + Analysis type, LLM enrichment
-│   │   ├── detect.go               #   Dependency / auth / route signal detection
-│   │   ├── manifest.go             #   package.json / go.mod / Cargo.toml / etc. parsing
-│   │   ├── features.go             #   Feature inference from structure + signals
-│   │   ├── graph.go                #   Knowledge-graph (nodes/edges) builder
-│   │   └── codegraph.go            #   Codebase-memory graph builder
-│   │
-│   ├── api/                        # Higher-level JSON HTTP routes (/api/cortex/*)
-│   │   ├── routes.go               #   Route registration
-│   │   ├── scan.go                 #   Per-repo + bulk scan orchestration + persistence
-│   │   ├── prompt.go               #   Per-project system-prompt generation
-│   │   ├── providers.go            #   LLM/embedding provider config (per-user)
-│   │   ├── codegraph.go            #   Build / fetch the code graph
-│   │   ├── digest.go               #   Session digest generation + listing
-│   │   ├── export.go               #   Portable .cortex/memory.json bundle export
-│   │   ├── github.go               #   GitHub repo listing / import
-│   │   └── mcp_admin.go            #   MCP connection (token) management
-│   │
-│   ├── auth/github.go              # GitHub OAuth hooks + REST client (list/clone repos)
-│   ├── config/config.go            # cortex.yaml + env config loading
-│   ├── daemon/daemon.go            # Wires SQLite, RPC, /api/cortex, /mcp, watcher
-│   │
-│   ├── db/
-│   │   ├── db.go                   # Activity logging helper
-│   │   └── schema.go               # All SQLite collections (created on boot)
-│   │
-│   ├── git/sync.go                 # Clone / commit / pull, .cortex/ directory mgmt
-│   │
-│   ├── llm/
-│   │   ├── llm.go                  # ProviderConfig + Client interface + factory
-│   │   ├── mistral.go              # Mistral chat + embeddings
-│   │   └── ollama.go               # Ollama chat (prompt generation)
-│   │
-│   ├── mcp/                        # Model Context Protocol server
-│   │   ├── server.go               #   JSON-RPC 2.0 handler + token auth + sessions
-│   │   └── tools.go                #   Tools / prompts / resources implementations
-│   │
-│   ├── memory/vault.go             # Export vault entries to .cortex/ markdown files
-│   │
-│   ├── rpc/                        # ConnectRPC service handlers
-│   │   ├── server.go  auth.go  convert.go
-│   │   ├── project.go  task.go  vault.go  handoff.go
-│   │   └── search.go  activity.go  daemon.go  user.go
-│   │
-│   ├── scanner/                    # Repository file indexer
-│   │   ├── scanner.go              #   Walks repo, indexes files, writes scan_results
-│   │   ├── symbols.go              #   Function/class/import extraction (regex)
-│   │   └── language.go             #   Extension → language detection
-│   │
-│   ├── search/engine.go            # Keyword (FTS) search over collections
-│   ├── vector/                     # Semantic-search abstraction (optional)
-│   │   ├── store.go  ollama.go  lancedb.go
-│   └── watcher/watcher.go          # fsnotify-based incremental re-scans
-│
-├── proto/cortex/v1/cortex.proto    # ConnectRPC service/message definitions
-├── gen/                            # Generated Go code from proto (buf generate)
-│
-├── ui/                             # SolidJS web UI
-│   ├── public/                     # logo.png, logowithname.png
-│   ├── src/
-│   │   ├── api/
-│   │   │   ├── client.ts           # All backend calls (REST, ConnectRPC, /api/cortex)
-│   │   │   ├── queries.ts          # TanStack Query hooks + keys + mutations (server state)
-│   │   │   ├── queryClient.ts      # Shared QueryClient
-│   │   │   ├── settings.ts         # Zustand store — UI preferences (client state)
-│   │   │   ├── auth.tsx            # GitHub OAuth + session
-│   │   │   └── pb.ts               # SQLite client
-│   │   ├── pages/
-│   │   │   ├── Dashboard/  Projects/  Repository/  Vaults/  Tasks/  Handoffs/
-│   │   │   ├── Search/  CodeGraph/  AgentMemory/  SessionDigests/
-│   │   │   ├── AIContext/          # AI Agents / system-prompt builder
-│   │   │   ├── MCPServer/          # MCP connections + per-platform integration guides
-│   │   │   │   ├── MCPServer.tsx
-│   │   │   │   └── integrations.ts # Per-client config catalog (Cursor, CLIs, IDEs...)
-│   │   │   └── Settings/  Login/
-│   │   ├── components/             # Sidebar, TopBar, Modal, ForceGraph, cards, feeds...
-│   │   ├── layouts/  App.tsx  index.tsx  index.css
-│   │   └── ...
-│   └── package.json
-│
-├── cortex.yaml                     # Daemon configuration
-├── buf.yaml / buf.gen.yaml         # Protobuf module + Go codegen config
-├── setup.ps1                       # One-shot dependency setup (Windows)
-├── go.mod / go.sum
-└── README.md
-```
-
-### Key data collections (SQLite, auto-created on boot)
-| Collection        | Purpose |
-|-------------------|---------|
-| `users`           | GitHub-authenticated users (token, preferences / provider keys) |
-| `projects`        | Repositories + analysis `metadata` (tech stack, graph, system prompt) |
-| `scan_results`    | Per-scan summary (languages, modules, endpoints) |
-| `file_index`      | Per-file index (symbols, checksums) |
-| `code_graphs`     | Persistent codebase-memory graph (nodes / edges / stats) per project |
-| `vault_entries`   | Architecture / decision / memory entries (exported to `.cortex/`) |
-| `tasks`, `handoffs` | Project tasks and AI-to-AI handoffs |
-| `agent_memories`  | AI working memory per project, tagged by IDE / session |
-| `session_digests` | Compressed session summaries (markdown + compact JSON) |
-| `activity_log`    | Audit / activity feed |
-| `search_history`  | Recent search queries |
-| `mcp_tokens`      | Per-IDE MCP connection credentials |
-
----
-
-## Prerequisites
-
-- **Go** 1.25+ — https://go.dev/dl/
-- **Node.js** 18+ and npm — https://nodejs.org
-- *(Optional)* **Ollama** for local embeddings/LLM — https://ollama.com
-- *(Optional)* **Mistral API key** for cloud LLM enrichment — https://console.mistral.ai
-
----
-
-## Quick Start
-
-### Windows (one-shot setup)
 ```powershell
 ./setup.ps1
 ```
-This runs `go mod tidy` and `npm install` in `ui/`.
 
-### Manual setup (any OS)
-```bash
-# 1. Backend deps
-go mod tidy
+Or install manually:
 
-# 2. Frontend deps
-cd ui && npm install && cd ..
+```powershell
+go mod download
+Set-Location ui
+npm ci
+Set-Location ..
 ```
 
----
+## Build and run on Windows
 
-## Running the Server
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build\build-desktop.ps1
+```
 
-The daemon defaults to `serve` on `127.0.0.1:8090` when launched with no arguments.
+The script builds the UI, embeds it in the daemon, and produces:
 
-```bash
-# Run from source (development)
+- `build/dist/CortexMind.exe` - native desktop app.
+- `build/dist/CortexMind-Setup-0.1.0.exe` - installer, when NSIS is available.
+
+Close older CortexMind and cortexd processes before opening the rebuilt app.
+Drag a window edge or corner to resize. The titlebar provides minimize, maximize,
+fullscreen, and close controls. GitHub sign-in opens your default browser; enter
+the code shown in CortexMind and return to the app after approving it.
+
+The desktop app verifies a running daemon using a credential-bound health challenge
+before reusing it. An unrelated application occupying the configured port causes a
+startup error rather than being loaded into the desktop window.
+
+## Run the daemon with a browser UI
+
+The daemon opens an authenticated UI link in your browser. The credential is passed
+in the URL fragment, removed by the UI, and kept only in that tab's session storage.
+Opening a plain URL without this credential cannot access the local API.
+
+```powershell
 go run ./cmd/cortexd
 
-# …or explicitly choose the address
-go run ./cmd/cortexd serve --http 127.0.0.1:8090
+# Choose another loopback port.
+go run ./cmd/cortexd serve --http 127.0.0.1:8100
+
+# Run only the server, for an already configured MCP client.
+go run ./cmd/cortexd serve --no-browser
 ```
 
-Build a standalone binary:
+`build-windows.ps1` builds the separate browser-based daemon at `CortexMind.exe` in
+the repository root. Use `build/build-desktop.ps1` for the native desktop window.
 
-```bash
-# Windows
-go build -o cortexd.exe ./cmd/cortexd
-./cortexd.exe
+There is no SQLite admin web page, superuser command, or admin OAuth setup.
+GitHub sign-in uses the public client ID included in the build and requires no
+client secret.
 
-# macOS / Linux
-go build -o cortexd ./cmd/cortexd
-./cortexd
-```
+## Develop the UI
 
-Once running you have:
+Use two terminals. Set an explicit development origin so the daemon accepts requests
+forwarded by Vite, then let cortexd open the authenticated development URL.
 
-- **Web UI / REST API:** http://127.0.0.1:8090
-- **SQLite Admin:** http://127.0.0.1:8090/_/
-- **MCP endpoint:** http://127.0.0.1:8090/mcp
-
-### Create an admin (SQLite superuser)
-
-Needed to access the admin UI at `/_/` and configure GitHub OAuth:
-
-```bash
-go run ./cmd/cortexd superuser upsert admin@cortex.local "your-password"
-```
-
----
-
-## Running the UI
-
-In development the UI runs on Vite and talks to the daemon on `:8090`.
-
-```bash
-cd ui
-npm run dev          # Vite dev server (default http://localhost:5173)
-```
-
-> Run `cortexd` and the UI dev server in **two separate terminals**. Long-running dev
-> servers should not be backgrounded by scripts.
-
-Production build (type-check + bundle):
-
-```bash
-cd ui
-npm run build        # tsc --noEmit + vite build → outputs static assets to ui/dist
-```
-
----
-
-## Building the Windows App
-
-The Windows build embeds the production UI into the Go binary, so rebuild the executable
-after changing the frontend. From the repository root:
+Terminal 1:
 
 ```powershell
-./build-windows.ps1
+Set-Location ui
+npm run dev
 ```
 
-The script builds `ui/dist`, copies the assets into `internal/web/dist`, and produces
-`CortexMind.exe`. Close any running CortexMind process before launching the rebuilt binary.
-
-The separate TanStack landing-page repository is deployed independently to Vercel; it is not
-the embedded CortexMind UI.
-
-## Building macOS and Linux Releases
-
-Desktop builds are native to their target operating system: build the macOS release on macOS and
-the Linux release on Linux. Each build contains only the controls for that platform (macOS traffic
-lights or Linux minimise/maximise/close controls). GitHub sign-in opens in the user's default
-browser on every desktop release.
-
-```bash
-# macOS (run on a Mac; requires Xcode Command Line Tools)
-xcode-select --install
-./build/build-desktop.sh
-# output: build/dist/CortexMind
-
-# Linux (run on Linux; install your distribution's WebKitGTK development package first)
-# Debian/Ubuntu:
-sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
-./build/build-desktop.sh
-# output:
-#   build/dist/CortexMind
-#   build/dist/CortexMind-0.1.0-x86_64.AppImage
-#   build/dist/CortexMind-0.1.0-linux-x86_64.tar.gz
-```
-
-The same script detects the host platform and refuses to cross-package it: distribute the binary
-produced on macOS only as the macOS release, and the Linux AppImage produced on Linux (or via
-Docker) only as the Linux release.
-
-## Linux AppImage (universal)
-
-[AppImage](https://appimage.org) is the distro-agnostic Linux format: one file, no package manager,
-works across Ubuntu, Fedora, Arch, Mint, Debian, and similar. Give users:
-
-```
-CortexMind-0.1.0-x86_64.AppImage
-```
-
-On Linux:
-
-```bash
-chmod +x CortexMind-0.1.0-x86_64.AppImage
-./CortexMind-0.1.0-x86_64.AppImage
-```
-
-The window uses the system **WebKitGTK 4.1** webview (same as other Wails/GTK apps). If it does
-not open, install that runtime:
-
-```bash
-# Debian / Ubuntu / Mint
-sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0
-
-# Fedora
-sudo dnf install webkit2gtk4.1 gtk3
-
-# Arch
-sudo pacman -S webkit2gtk-4.1 gtk3
-```
-
-### Build the AppImage from Windows (Docker)
-
-Wails cannot cross-compile the Linux webview from Windows. With Docker Desktop running:
+Terminal 2, from the repository root:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\build-linux.ps1
+$env:CORTEX_DEV_ORIGIN = 'http://localhost:3000'
+go run ./cmd/cortexd
 ```
 
-This builds inside Ubuntu 22.04 (glibc 2.35, so the AppImage runs on most current distros) and
-writes the artifacts to `build/dist/`.
+Vite proxies `/api` and `/mcp` to port 8090. If the daemon uses another port, set
+`CORTEX_API_TARGET` before starting Vite, for example `http://127.0.0.1:8100`.
+Use relative API URLs in the production UI; it automatically uses the daemon's
+configured port. Remove `CORTEX_DEV_ORIGIN` for production runs.
 
-A portable `.tar.gz` is produced next to the AppImage for hosts that prefer a plain directory.
+```powershell
+Remove-Item Env:CORTEX_DEV_ORIGIN -ErrorAction SilentlyContinue
+```
 
-## Configuration
+The authenticated launch link is private. Do not share it or put its credential in
+source control. If session storage is unavailable, the UI can still use the credential
+in memory, but a full reload needs a new authenticated launch link.
 
-Configuration is read from `cortex.yaml` (searched in `.`, `.cortex/`, and `~/.cortex/`) and
-overridden by `CORTEX_*` environment variables. Missing config falls back to sensible defaults.
+## Configure the daemon
+
+`cortex.yaml` is read from the current directory, `.cortex/`, or `~/.cortex/`.
+Environment variables override configuration values.
 
 ```yaml
 server:
   port: 8090
-  mcp_port: 8091
-  data_dir: ~/.cortex/data     # SQLite + cloned repos live here
+  data_dir: ~/.cortex
 
 scanner:
-  interval_minutes: 30
   max_file_size_kb: 500
   ignored_dirs: [node_modules, .git, dist, build, target, __pycache__, .venv, vendor]
-  ignored_extensions: [.lock, .sum, .min.js, .map]
 
-search:
-  enable_semantic: false          # true requires Ollama + a LanceDB sidecar
-  ollama_url: "http://localhost:11434"
-  embedding_model: "bge-m3"
-  vector_db_url: "http://localhost:8123"
-
-sync:
-  auto_sync: true
-  sync_on_push: true
-
-env: development
 log_level: info
 ```
 
-### Secrets / environment variables
 | Variable | Purpose |
-|----------|---------|
-| `CORTEX_OLLAMA_URL`           | Override Ollama URL |
-| `CORTEX_DATA_DIR`             | Override data directory |
+|---|---|
+| `CORTEX_SERVER_PORT` | Local HTTP and MCP port |
+| `CORTEX_DATA_DIR` | SQLite and cloned repository cache directory |
+| `CORTEX_DEV_ORIGIN` | Explicit local Vite origin; for development only |
+| `CORTEX_GITHUB_CLIENT_ID` | Override the public GitHub OAuth app client ID |
+| `CORTEX_LOG_LEVEL` | Logging level |
 
-> GitHub sign-in uses Device Flow. The desktop app includes its public Client ID and users approve a one-time code at GitHub; no Client Secret or OAuth environment variables are required.
-> **LLM provider keys (Mistral) and embedding settings are configured per-user in the UI** under
-> **Settings → AI Agents**, and stored on the user record — never in `cortex.yaml`.
+MCP uses `/mcp` on `server.port`; the legacy `mcp_port` setting does not open a
+second listener. The daemon binds to `127.0.0.1` and rejects unexpected Host and
+Origin headers. API requests require the local API credential; MCP requests require
+a separate connection token. JSON request bodies are limited to 2 MiB.
 
----
+## Connect an MCP client on Windows
 
-## The Workflow
+1. Start the desktop app or daemon and keep it running.
+2. Create a local project or sign in with GitHub to import repositories. Scan the
+   project if your agent needs its source graph.
+3. Open **MCP Server > New Connection**. Select the project and client, then create
+   the connection. Settings' **New Connection** link opens this setup screen.
+4. Copy the generated token and client configuration. The token is displayed only
+   once and is restricted to the selected project.
+5. Save the configuration in the location shown by the app and restart your AI client.
 
-1. **Start** the daemon and UI, open the UI, and **sign in with GitHub**.
-2. **Projects** page → your repos appear. Click **Scan** on a repo. CortexMind clones it, indexes it,
-   and builds its knowledge graph.
-3. **Code Graph** page → **Build graph** to compile the indexed files into a queryable
-   codebase-memory graph.
-4. *(Optional)* **Settings → AI Agents** → add a **Mistral key** or point at **Ollama** for richer
-   output and memory embeddings.
-5. **AI Agents** page → pick a scanned project → **Generate System Prompt**. This is the project's
-   "characterization."
-6. **Integrations (MCP Server)** page → **New Connection** → pick the project + your AI client →
-   copy the generated, client-specific config into your IDE/CLI.
-7. On MCP connection, CORTEX sends the saved project system prompt in its startup instructions. The agent can also call `cortex_get_system_prompt` to refresh it, then `cortex_get_context` for memory. Use `cortex_save_memory` to record progress and `cortex_summarize_session` at the end for the next session.
+For Codex, add this to `%USERPROFILE%\.codex\config.toml`:
 
-For repository sharing, use the compact export by default. It commits durable vault entries and
-session digests while keeping raw per-session agent memories in local storage. Add `?full=true` only
-when a complete raw-memory archive is required; add `?push=true` when it should be pushed to GitHub.
+```toml
+[mcp_servers.cortex]
+url = "http://127.0.0.1:8090/mcp"
+http_headers = { Authorization = "Bearer YOUR_CORTEX_TOKEN" }
+```
 
-### MCP Call Efficiency
+For VS Code / GitHub Copilot Agent mode, use `.vscode/mcp.json`:
 
-For normal session startup, prefer `cortex_get_session_digests` before loading the full context.
-Session digests are compact summaries of previous work and typically use far fewer model tokens than
-`cortex_get_context`. Use the full context call when the agent needs the complete project
-characterization, custom system prompt, recent memories, and architectural notes.
+```json
+{
+  "servers": {
+    "cortex": {
+      "type": "http",
+      "url": "http://127.0.0.1:8090/mcp",
+      "headers": { "Authorization": "Bearer YOUR_CORTEX_TOKEN" }
+    }
+  }
+}
+```
 
-The following local loopback benchmark was measured on 2026-07-14 using three samples per read
-operation. These are server round-trip measurements and exclude model generation time:
+Replace the placeholder token. If you changed the daemon port, use the endpoint
+shown by the app. Keep configurations containing tokens private and out of Git.
+The formats are described in the [Codex configuration reference](https://developers.openai.com/codex/config-reference)
+and [VS Code MCP reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
 
-| MCP call | Average latency | Approx. response tokens |
-|----------|-----------------|-------------------------|
-| `cortex_get_context` | 2.96 ms | 585 |
-| `cortex_get_session_digests` | 1.69 ms | 130 |
-| `cortex_list_memories` | 1.24 ms | 149 |
-| `cortex_code_map` | 5.77 ms | 320 |
-| `cortex_save_memory` | 7.04 ms | Small acknowledgement |
-| `cortex_summarize_session` | 5.98 ms | About 218 in this session |
+Verify the connection in PowerShell:
 
-In the same benchmark, the digest used about 78% fewer tokens than the full context. After adding
-another memory, the measured responses were about 724 tokens for full context versus 223 tokens for
-the digest, a 69% reduction. Token counts are approximate and vary with the project's prompt and
-memory size.
+```powershell
+$mcpToken = 'YOUR_CORTEX_TOKEN'
+$headers = @{ Authorization = "Bearer $mcpToken"; Accept = 'application/json, text/event-stream' }
+$body = @{ jsonrpc = '2.0'; id = 1; method = 'tools/list'; params = @{} } | ConvertTo-Json -Compress
+(Invoke-RestMethod -Uri 'http://127.0.0.1:8090/mcp' -Method Post -Headers $headers -ContentType 'application/json' -Body $body).result.tools.name
+```
 
-Keep saved memories concise and information-dense. Call `cortex_save_memory` during meaningful
-progress or decisions, then call `cortex_summarize_session` once at the end of the session. The
-full context response can grow because it includes the custom system prompt, up to 3 recent digests,
-up to 30 memories, and up to 10 architectural notes.
+Tools include `cortex_get_system_prompt`, `cortex_get_context`, `cortex_get_code_graph`,
+`cortex_save_memory`, `cortex_list_memories`, `cortex_get_tasks`, and
+`cortex_summarize_session`. Start a session by reading the system prompt and context;
+save useful decisions and summarize the session before handing off work.
+`project_id` is optional in tool calls because the connection already specifies it.
+A different project ID is rejected. Delete a connection in the app to revoke its token.
 
----
+A remote web client cannot reach your computer's loopback address. The default
+server configuration supports clients running on the same computer.
 
-## HTTP & MCP API
+## Reset application data
 
-### `/api/cortex/*` (JSON, Bearer = SQLite token)
-| Method & Path | Description |
-|---------------|-------------|
-| `POST /api/cortex/scan/{project}` | Clone (if needed), index and deeply analyze one project |
-| `POST /api/cortex/system-prompt/{project}` | Generate the project's system prompt |
-| `GET/POST /api/cortex/providers` | Get / set the per-user LLM + embedding config |
-| `GET /api/cortex/knowledge-graph/{project}` | Stored knowledge graph for a project |
-| `GET/POST /api/cortex/code-graph/{project}` | Fetch / build the codebase-memory graph |
-| `POST /api/cortex/session-digest/{project}` | Compress a session's memories into a digest |
-| `GET /api/cortex/session-digests/{project}` | List stored session digests |
-| `POST /api/cortex/export/{project}` | Export a compact `.cortex/memory.json` bundle; use `?push=true` to push or `?full=true` to include raw memories |
-| `GET /api/cortex/github/repos` | List the signed-in user's GitHub repos (paginated) |
-| `POST /api/cortex/github/sync` | Import/sync GitHub repos as projects |
-| `GET/POST /api/cortex/mcp/connections` | List / create MCP connections |
+**Settings > Reset all data** deletes application records, imported and local project
+entries, code graphs, indexes, prompts, provider settings, users, and saved memories.
+It revokes all MCP connections, removes saved GitHub and Mistral credentials, and
+clears the daemon's cloned repository cache and browser preferences. It cancels an
+in-progress GitHub login and reports errors if any reset step fails. Database table
+deletions run in a transaction.
+
+User-selected project directories and their source files are preserved. The local
+API credential remains in the operating system credential store so the app can
+continue to work after reset. A reset cannot be undone.
+
+## API overview
+
+The app uses authenticated JSON REST endpoints. The generated ConnectRPC types are
+retained in the source tree, but ConnectRPC services are not registered by this daemon.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Public challenge response for verifying the local daemon |
+| `GET /api/cortex/status` | Actual daemon readiness and capabilities |
+| `/api/auth/*` | Session, GitHub Device Flow, offline profile, logout |
+| `/api/projects` | List or create projects |
+| `GET /api/projects/{id}` | Read a project |
+| `GET /api/github/repositories/{id}/view` | GitHub metadata, files, and rendered README |
+| `POST /api/github/sync` | Refresh imported repositories |
+| `POST /api/cortex/scan/{id}` | Update a GitHub checkout or scan a local directory |
+| `/api/cortex/code-graph/{id}` | Read or rebuild a source graph |
+| `/api/cortex/system-prompt/{id}` | Read, generate, or save a prompt |
+| `/api/cortex/session-digest/{id}` | Generate a session digest |
+| `/api/cortex/session-digests/{id}` | List session digests |
+| `/api/cortex/providers` | Read or save provider preferences; keys are redacted |
+| `/api/cortex/mcp/connections` | List or create project-bound connections |
 | `DELETE /api/cortex/mcp/connections/{id}` | Revoke a connection |
-| `GET /api/cortex/mcp/connections/{id}/status` | Connection status (last used, connected) |
+| `POST /api/cortex/reset` | Reset application data and revoke credentials |
+| `POST /mcp` | MCP JSON-RPC with a separate project-bound bearer token |
 
-### `/mcp` (MCP, JSON-RPC 2.0 over HTTP, Bearer = MCP connection token)
-**Tools:** `cortex_get_system_prompt` - `cortex_get_context` - `cortex_get_code_graph` - `cortex_save_memory` - `cortex_list_memories` - `cortex_get_tasks` - `cortex_summarize_session`
+## Other desktop platforms
 
-The connection-specific MCP startup instructions include the saved project system prompt. Use `cortex_get_system_prompt` again whenever the prompt may have changed.
+Build the native desktop shell on its target operating system. The headless daemon
+is pure Go and can be cross-compiled separately.
 
----
+```bash
+# macOS, with Xcode Command Line Tools installed
+./build/build-desktop.sh
 
-## Supported AI Clients
+# Linux, with GTK3/WebKitGTK development libraries installed
+./build/build-desktop.sh
+```
 
-The **Integrations (MCP Server)** page generates the correct config for each client:
-
-- **AI Agent CLIs:** Claude Code, Codex, Gemini CLI, GitHub Copilot (`.vscode/mcp.json`), OpenCode
-- **Web Clients:** Claude.ai, ChatGPT *(require a public HTTPS tunnel — localhost isn't reachable)*
-- **IDEs:** Cursor, Antigravity, Kiro, Windsurf
-
-Each connection is authorized by a unique Bearer token bound to a user + project + client.
-
----
+From Windows, `build-linux.ps1` can build the Linux release with Docker Desktop.
+See the build scripts for their distribution and packaging requirements.
 
 ## Troubleshooting
 
-- **Port 8090 already in use** — another `cortexd` is running, or change `server.port` in `cortex.yaml`.
-- **Can't open `/_/` admin** — create a superuser first (see [Running the Server](#running-the-server)).
-- **GitHub repos don't appear** — ensure GitHub OAuth is configured in the admin UI and you signed in with the `repo` scope.
-- **Scan says "no local path or GitHub URL"** — the project needs a `github_url`; re-sync via GitHub login, or scan a project that has one.
-- **System prompt is "offline (no LLM)"** — configure a Mistral key or Ollama in **Settings → AI Agents**; otherwise a heuristic prompt is produced.
-- **Web clients can't connect** — Claude.ai/ChatGPT need a public HTTPS URL; expose `/mcp` via a tunnel (e.g. cloudflared/ngrok).
-- **MCP tool returns "not bound to a project"** — recreate the connection with a project selected.
+- **Unauthorized / HTTP 401 in the UI:** reopen through the desktop app or the link
+  cortexd opens. A plain localhost URL does not contain the local credential.
+- **Port occupied or desktop startup fails:** close an older daemon or choose another
+  `server.port`. Check `cortexmind-desktop.log` in the configured data directory.
+- **Credential store unavailable:** check Windows Credential Manager or the platform
+  keyring. Startup errors are reported rather than exposing an unprotected API.
+- **Private README or files fail to load:** reconnect GitHub and check access to the
+  repository. README content uses GitHub's authenticated
+  [repository contents API](https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28)
+  and is displayed in an isolated frame.
+- **Scan cannot update a repository:** fix the reported network, permission, or Git
+  error and retry. A failed pull is not silently scanned as current data.
+- **Local project cannot scan:** provide an existing directory path when creating it.
+- **MCP HTTP 401:** create a new connection and update the client's token.
+- **MCP project mismatch:** omit `project_id` or use the connection's selected project.
+- **Development origin rejected:** set `CORTEX_DEV_ORIGIN` to the exact Vite origin
+  before starting cortexd. Use Vite's proxy for API requests.
 
----
+## Verification
 
-<p align="center">
-  <sub>CortexMind is local-first: your code, memory, and tokens stay on your machine in <code>~/.cortex/</code>.</sub>
-</p>
-<p align="center"><sub>Built with ❤️ by NexVed</sub></p>
+```powershell
+go test ./...
+go vet ./...
+Set-Location ui
+npm run build
+```
+
+Regression tests cover API authentication and origin checks, daemon identity,
+request limits, reset rollback and token revocation, private repository content,
+cancellable GitHub login, local scanning, index replacement, and failed Git updates.

@@ -42,11 +42,18 @@ type Project struct {
 }
 
 func Open(dataDir string) (*DB, error) {
-	conn, err := sql.Open("sqlite", filepath.Join(dataDir, "cortexmind.db"))
+	// Apply these pragmas on every pooled connection, not just the first one.
+	conn, err := sql.Open("sqlite", filepath.Join(dataDir, "cortexmind.db")+"?_pragma=busy_timeout%285000%29&_pragma=foreign_keys%281%29")
 	if err != nil {
 		return nil, err
 	}
 	db := &DB{conn}
+	conn.SetMaxOpenConns(4)
+	conn.SetMaxIdleConns(4)
+	if _, err = db.Exec(`PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS local_records (collection_name TEXT NOT NULL, id TEXT PRIMARY KEY, project_id TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_local_records_collection_project ON local_records(collection_name,project_id,updated DESC); CREATE TABLE IF NOT EXISTS mcp_connections (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, ide TEXT NOT NULL, label TEXT NOT NULL, client_name TEXT NOT NULL DEFAULT '', token_hash TEXT NOT NULL UNIQUE, enabled INTEGER NOT NULL DEFAULT 1, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, last_used TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS idx_mcp_connections_token ON mcp_connections(token_hash); CREATE TABLE IF NOT EXISTS app_settings (id TEXT PRIMARY KEY, payload TEXT NOT NULL);`); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	if _, err = db.Exec(`PRAGMA foreign_keys = ON; CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, provider TEXT NOT NULL, github_id TEXT NOT NULL DEFAULT '', username TEXT NOT NULL DEFAULT '', display_name TEXT NOT NULL DEFAULT '', avatar_url TEXT NOT NULL DEFAULT '', offline INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS active_session (slot INTEGER PRIMARY KEY CHECK (slot = 1), user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS github_organizations (login TEXT PRIMARY KEY, avatar_url TEXT NOT NULL DEFAULT ''); CREATE TABLE IF NOT EXISTS github_repositories (github_id INTEGER PRIMARY KEY, name TEXT NOT NULL, full_name TEXT NOT NULL, private INTEGER NOT NULL, clone_url TEXT NOT NULL, html_url TEXT NOT NULL, updated_at TEXT NOT NULL); CREATE TABLE IF NOT EXISTS repository_scans (github_id TEXT PRIMARY KEY, local_path TEXT NOT NULL, indexed_files INTEGER NOT NULL, last_scanned TEXT NOT NULL); CREATE TABLE IF NOT EXISTS code_graphs (project_id TEXT PRIMARY KEY, payload TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, path TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '', github_url TEXT NOT NULL DEFAULT '', github_repo_id TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active', progress REAL NOT NULL DEFAULT 0, icon_color TEXT NOT NULL DEFAULT '', created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`); err != nil {
 		conn.Close()
 		return nil, err
@@ -118,7 +125,24 @@ func (d *DB) ListProjects() ([]Project, error) {
 		p.Technologies = []string{}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	localRows, err := d.Query(`SELECT id,name,path,description,github_url,github_repo_id,status,progress,icon_color,created,updated FROM projects ORDER BY updated DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer localRows.Close()
+	for localRows.Next() {
+		var p Project
+		if err := localRows.Scan(&p.ID, &p.Name, &p.Path, &p.Description, &p.GitHubURL, &p.GitHubRepoID, &p.Status, &p.Progress, &p.IconColor, &p.Created, &p.Updated); err != nil {
+			return nil, err
+		}
+		p.Technologies = []string{}
+		p.LastActivity = p.Updated
+		out = append(out, p)
+	}
+	return out, localRows.Err()
 }
 func (d *DB) Project(id string) (*Project, error) {
 	for _, p := range mustProjects(d.ListProjects()) {
@@ -126,7 +150,15 @@ func (d *DB) Project(id string) (*Project, error) {
 			return &p, nil
 		}
 	}
-	return nil, sql.ErrNoRows
+	var p Project
+	err := d.QueryRow(`SELECT id,name,path,description,github_url,github_repo_id,status,progress,icon_color,created,updated FROM projects WHERE id=?`, id).
+		Scan(&p.ID, &p.Name, &p.Path, &p.Description, &p.GitHubURL, &p.GitHubRepoID, &p.Status, &p.Progress, &p.IconColor, &p.Created, &p.Updated)
+	if err != nil {
+		return nil, err
+	}
+	p.Technologies = []string{}
+	p.LastActivity = p.Updated
+	return &p, nil
 }
 func mustProjects(projects []Project, err error) []Project {
 	if err != nil {

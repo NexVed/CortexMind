@@ -8,6 +8,8 @@ import (
 
 const service = "com.nexved.cortexmind"
 
+var ErrNotFound = keyring.ErrNotFound
+
 // TokenStore keeps provider credentials in the operating system credential store,
 // never in the application database.
 type TokenStore interface {
@@ -25,4 +27,10 @@ func (Store) Set(account, token string) error {
 	}
 	return keyring.Set(service, account, token)
 }
-func (Store) Delete(account string) error { return keyring.Delete(service, account) }
+func (Store) Delete(account string) error {
+	err := keyring.Delete(service, account)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return nil
+	}
+	return err
+}

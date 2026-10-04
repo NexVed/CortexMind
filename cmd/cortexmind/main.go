@@ -20,7 +20,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,6 +27,8 @@ import (
 
 	"github.com/NexVed/Cortex/internal/config"
 	"github.com/NexVed/Cortex/internal/daemon"
+	"github.com/NexVed/Cortex/internal/keychain"
+	"github.com/NexVed/Cortex/internal/localauth"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -48,17 +49,25 @@ func main() {
 	setupLogging(cfg.LogLevel)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Server.Port)
+	token, err := localauth.Load(cfg.DataDirPath(), keychain.Store{})
+	if err != nil {
+		fatal(cfg, "CortexMind could not access its local API credential.", err)
+		return
+	}
 
 	// Reuse an already-running backend if one is up; otherwise boot our own.
 	// This is what makes launching a second copy (or having a manual cortexd
 	// running) safe: we never start a second daemon against the same data dir.
-	if !serverAlive(addr) {
-		os.Args = []string{os.Args[0], "serve", "--http", addr}
-		d := daemon.New(cfg)
+	if !serverAlive(addr, token) {
+		d, err := daemon.New(cfg)
+		if err != nil {
+			fatal(cfg, "CortexMind could not start its backend.", err)
+			return
+		}
 		errCh := make(chan error, 1)
 		go func() { errCh <- d.Start() }()
 
-		if err := waitForServer(addr, 25*time.Second, errCh); err != nil {
+		if err := waitForServer(addr, token, 25*time.Second, errCh); err != nil {
 			fatal(cfg, "CortexMind could not start its backend.", err)
 			return
 		}
@@ -92,7 +101,7 @@ func main() {
 		MinHeight:     480,
 		DisableResize: false,
 		// Mark the local daemon page as a desktop navigation so the titlebar always renders.
-		URL:              "http://" + addr + "?desktop=1&platform=" + runtime.GOOS,
+		URL:              "http://" + addr + "/?desktop=1&platform=" + runtime.GOOS + "#local_auth=" + token,
 		BackgroundColour: application.NewRGB(13, 17, 23),
 		// Frameless: the UI draws its own titlebar (WindowTitleBar.tsx). On
 		// Windows 11 frameless windows still get DWM rounded corners + shadow.
@@ -112,24 +121,20 @@ func main() {
 	window.SetResizable(true)
 
 	// Window controls emitted by the custom titlebar.
-	maximised := false
-	fullscreen := false
 	app.Event.On("wnd:minimise", func(*application.CustomEvent) { window.Minimise() })
 	app.Event.On("wnd:toggle-maximise", func(*application.CustomEvent) {
-		if maximised {
+		if window.IsMaximised() {
 			window.Restore()
 		} else {
 			window.Maximise()
 		}
-		maximised = !maximised
 	})
 	app.Event.On("wnd:toggle-fullscreen", func(*application.CustomEvent) {
-		if fullscreen {
+		if window.IsFullscreen() {
 			window.UnFullscreen()
 		} else {
 			window.Fullscreen()
 		}
-		fullscreen = !fullscreen
 	})
 	app.Event.On("wnd:close", func(*application.CustomEvent) { window.Close() })
 
@@ -142,7 +147,7 @@ func main() {
 
 // waitForServer blocks until the daemon accepts connections on addr, the daemon
 // reports a startup error, or the timeout elapses.
-func waitForServer(addr string, timeout time.Duration, errCh <-chan error) error {
+func waitForServer(addr, token string, timeout time.Duration, errCh <-chan error) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		select {
@@ -153,7 +158,7 @@ func waitForServer(addr string, timeout time.Duration, errCh <-chan error) error
 			return fmt.Errorf("backend exited during startup")
 		default:
 		}
-		if serverAlive(addr) {
+		if serverAlive(addr, token) {
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -161,18 +166,8 @@ func waitForServer(addr string, timeout time.Duration, errCh <-chan error) error
 	return fmt.Errorf("backend did not become ready within %s", timeout)
 }
 
-// serverAlive reports whether something is accepting TCP connections on addr.
-// ponytail: a plain dial can't tell CORTEX apart from an unrelated process that
-// happened to grab the port; on the fixed loopback CORTEX port this is a
-// non-issue in practice. Upgrade path: probe GET / and check a response header.
-func serverAlive(addr string) bool {
-	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
+// An unrelated listener cannot produce the credential-bound health proof.
+func serverAlive(addr, token string) bool { return localauth.Alive(addr, token) }
 
 // fatal surfaces a startup failure without crashing: it writes the reason to a
 // log file in the data dir (the app has no console under -H windowsgui) and to

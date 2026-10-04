@@ -5,8 +5,8 @@ import { queryClient } from './api/queryClient';
 import { AuthProvider, useAuth } from './api/auth';
 import { AppLayout } from './layouts/AppLayout';
 import { GlobalShortcuts } from './components/GlobalShortcuts';
-import { WindowTitleBar } from './components/WindowTitleBar/WindowTitleBar';
 import { isWailsDesktop } from './api/desktop';
+import { WindowResizeHandles } from './components/WindowResizeHandles/WindowResizeHandles';
 import { initSettings } from './api/settings';
 import { LoginPage } from './pages/Login/Login';
 import { DashboardMain } from './pages/Dashboard/Dashboard';
@@ -105,6 +105,7 @@ const RootShell: Component<{ children?: any }> = (props) => {
     <>
       <GlobalShortcuts />
       {props.children}
+      <Show when={isWailsDesktop()}><WindowResizeHandles /></Show>
     </>
   );
 };

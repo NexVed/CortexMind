@@ -1,4 +1,5 @@
 import { Component, For, createSignal, createEffect, Show } from 'solid-js';
+import { A } from '@solidjs/router';
 import { createPersistedSignal } from '../../api/persistedState';
 import { Settings, Palette, FolderGit2, BrainCircuit, Server, GitBranch, Keyboard, Info, Trash2, Plus, Plug } from 'lucide-solid';
 import { type ProviderConfig, type MCPConnection } from '../../api/client';
@@ -6,7 +7,6 @@ import {
   useProviderConfig,
   useSetProviderConfig,
   useMCPConnections,
-  useCreateMCPConnection,
   useDeleteMCPConnection,
   useResetAllData,
 } from '../../api/queries';
@@ -85,7 +85,10 @@ export const SettingsPage: Component = () => {
     try {
       await resetM.mutateAsync();
       resetSettings();
-      logout();
+      await logout();
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith('cortex.')) window.localStorage.removeItem(key);
+      }
       window.location.href = '/';
     } catch (err: any) {
       alert(err?.message || 'Failed to reset data');
@@ -133,22 +136,12 @@ export const SettingsPage: Component = () => {
   // ── MCP connections ──────────────────────────────────
   const mcpQuery = useMCPConnections();
   const mcpConnections = () => mcpQuery.data;
-  const createConnM = useCreateMCPConnection();
   const deleteConnM = useDeleteMCPConnection();
-  const [creatingConn, setCreatingConn] = createSignal(false);
-
-  const handleCreateConnection = async () => {
-    setCreatingConn(true);
-    try {
-      await createConnM.mutateAsync({ ide: 'generic', label: 'New Connection' });
-    } catch { /* ignore */ }
-    setCreatingConn(false);
-  };
 
   const handleDeleteConnection = async (id: string) => {
     try {
       await deleteConnM.mutateAsync(id);
-    } catch { /* ignore */ }
+    } catch (err: any) { alert(err?.message || 'Failed to delete connection'); }
   };
 
   const inputStyle = {
@@ -301,7 +294,7 @@ export const SettingsPage: Component = () => {
             <div class="card">
               <div class="card-title" style={{ 'margin-bottom': '4px' }}>MCP Server Connections</div>
               <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
-                Manage IDE connections to the CORTEX MCP server. Each connection binds an IDE to your account.
+                Manage IDE connections to the CORTEX MCP server. Each connection binds an IDE to one project.
               </div>
 
               <Show when={mcpConnections()} fallback={<div class="small">Loading connections…</div>}>
@@ -353,15 +346,14 @@ export const SettingsPage: Component = () => {
 
               <div class="setting-row" style={{ 'border-bottom': 'none', 'margin-top': '8px' }}>
                 <span />
-                <button
+                <A
+                  href="/mcp-server"
                   class="btn primary"
                   style={{ height: '34px', padding: '0 18px', cursor: 'pointer', display: 'flex', 'align-items': 'center', gap: '6px' }}
-                  disabled={creatingConn()}
-                  onClick={handleCreateConnection}
                 >
                   <Plus size={14} />
-                  {creatingConn() ? 'Creating…' : 'New Connection'}
-                </button>
+                  New Connection
+                </A>
               </div>
             </div>
           )}
@@ -407,7 +399,7 @@ export const SettingsPage: Component = () => {
             <div class="card">
               <div class="card-title" style={{ 'margin-bottom': '4px' }}>AI Agents & Memory Providers</div>
               <div class="setting-description" style={{ 'margin-bottom': '16px' }}>
-                Configure the LLM used to enrich repository analysis and the embedding provider used to build semantic memory during a scan.
+                Save provider preferences and credentials securely. Current scans, prompts, and digests use local analysis; external enrichment and embeddings are not enabled.
               </div>
 
               <Show when={form()} fallback={<div class="small">Loading provider settings…</div>}>
@@ -457,7 +449,7 @@ export const SettingsPage: Component = () => {
                   <div class="setting-row">
                     <div class="setting-info">
                       <span class="setting-label">Mistral API Key</span>
-                      <span class="setting-description">Stored securely on your user record</span>
+                      <span class="setting-description">Stored in the operating system credential store</span>
                     </div>
                     <input
                       type="password"

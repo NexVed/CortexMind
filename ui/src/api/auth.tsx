@@ -1,5 +1,6 @@
 import { Component, JSX, createContext, createSignal, useContext, onMount } from 'solid-js';
 import { isWailsDesktop } from './desktop';
+import { API_BASE, getLocalToken, localFetch } from './local';
 
 export interface CortexUser { id: string; email: string; displayName: string; githubUsername: string; githubAvatarUrl: string; githubId: string; provider: string; offline: boolean; }
 
@@ -20,10 +21,10 @@ interface DeviceStartResponse {
   url: string;
   user_code: string;
   expires_in: number;
+  browser_error?: string;
 }
 
 const AuthContext = createContext<AuthContextValue>();
-const API = import.meta.env.VITE_API_URL || '';
 
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
@@ -45,7 +46,7 @@ function asUser(value: any): CortexUser {
 }
 
 async function request(path: string, init?: RequestInit): Promise<any> {
-  const response = await fetch(API + path, { headers: { 'Content-Type': 'application/json' }, ...init });
+  const response = await localFetch(API_BASE + path, { headers: { 'Content-Type': 'application/json' }, ...init });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error || 'Request failed');
   return body;
@@ -80,6 +81,7 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
       const start = await request(endpoint, { method: 'POST' }) as DeviceStartResponse;
       setDeviceCode(start.user_code);
       setVerificationURL(start.url);
+      if (start.browser_error) setError(`Could not open your default browser: ${start.browser_error}`);
       // Desktop: the daemon already opened the user's default browser.
       // Web: open a tab. Never navigate the CortexMind window to GitHub.
       if (!isWailsDesktop()) window.open(start.url, '_blank', 'noopener,noreferrer');
@@ -90,6 +92,7 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
         await restore();
       }
       if (!user()) throw new Error('GitHub sign-in timed out. Please try again.');
+      setError('');
       setDeviceCode('');
       setVerificationURL('');
     } catch (err: any) {
@@ -121,7 +124,7 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
 
   return <AuthContext.Provider value={{
     user,
-    token: () => '',
+    token: getLocalToken,
     isAuthenticated: () => user() !== null,
     isLoading,
     error,

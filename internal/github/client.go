@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -69,7 +71,7 @@ func (c Client) httpClient() *http.Client {
 	if c.HTTP != nil {
 		return c.HTTP
 	}
-	return http.DefaultClient
+	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // StartDeviceFlow creates a one-time code that a user enters at GitHub. It uses
@@ -130,7 +132,7 @@ func (c Client) postForm(ctx context.Context, endpoint string, values url.Values
 		return err
 	}
 	defer res.Body.Close()
-	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+	if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(target); err != nil {
 		return err
 	}
 	if res.StatusCode >= 300 {
@@ -155,7 +157,7 @@ func (c Client) get(ctx context.Context, token, path string, target any) error {
 	if res.StatusCode >= 300 {
 		return fmt.Errorf("GitHub API returned %s", res.Status)
 	}
-	return json.NewDecoder(res.Body).Decode(target)
+	return json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(target)
 }
 
 func (c Client) Profile(ctx context.Context, token string) (Profile, error) {

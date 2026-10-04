@@ -1,7 +1,7 @@
 # Binaries
 *.exe
-cortexd
-cortex
+/cortexd
+/cortex
 /bin/
 
 # Local SQLite data (also lives at ~/.cortex/data)

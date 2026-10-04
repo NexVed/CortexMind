@@ -12,17 +12,42 @@ export const LoginPage: Component = () => {
   const { loginWithGitHub, continueOffline, isAuthenticated, isLoading, error, deviceCode, verificationURL } = useAuth();
   const navigate = useNavigate();
   const [offlineName, setOfflineName] = createSignal('');
+  const [browserError, setBrowserError] = createSignal('');
 
   onMount(() => {
     if (isAuthenticated()) navigate('/', { replace: true });
   });
 
   const go = async (action: () => Promise<void>) => {
+    setBrowserError('');
     try {
       await action();
       if (isAuthenticated()) navigate('/', { replace: true });
     } catch {
       // The authentication provider renders the error.
+    }
+  };
+
+  const openVerification = async () => {
+    setBrowserError('');
+    const url = verificationURL();
+    if (!url) return;
+    if (!isWailsDesktop()) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      const response = await fetch('/api/auth/github/open-browser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error || 'Could not open the default browser');
+      }
+    } catch (err) {
+      setBrowserError(err instanceof Error ? err.message : 'Could not open the default browser');
     }
   };
 
@@ -56,15 +81,8 @@ export const LoginPage: Component = () => {
         <div class="login-device-flow">
           <span>Enter this code on GitHub</span>
           <code>{deviceCode()}</code>
-          <a href={verificationURL()} rel="noreferrer" onClick={(event) => {
-            if (!isWailsDesktop()) return;
-            event.preventDefault();
-            void fetch('/api/auth/github/open-browser', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: verificationURL() }),
-            });
-          }}>Open GitHub verification</a>
+          <button type="button" onClick={() => void openVerification()}>Open GitHub verification in browser</button>
+          <Show when={browserError()}><span class="login-error" role="alert">{browserError()}</span></Show>
         </div>
       </Show>
       <div class="login-divider">or stay offline</div>

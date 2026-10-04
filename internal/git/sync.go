@@ -1,6 +1,7 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -40,14 +41,14 @@ func authMethod(token string) *githttp.BasicAuth {
 // Clone performs a shallow clone of cloneURL into repoPath using the optional
 // GitHub token for private repositories. It is a no-op (returns nil) when the
 // destination already contains a git repository.
-func Clone(repoPath, cloneURL, token string) error {
+func Clone(ctx context.Context, repoPath, cloneURL, token string) error {
 	if _, err := git.PlainOpen(repoPath); err == nil {
 		return nil // already cloned
 	}
 	if err := os.MkdirAll(filepath.Dir(repoPath), 0o755); err != nil {
 		return err
 	}
-	_, err := git.PlainClone(repoPath, false, &git.CloneOptions{
+	_, err := git.PlainCloneContext(ctx, repoPath, false, &git.CloneOptions{
 		URL:          cloneURL,
 		Auth:         authMethod(token),
 		Depth:        1,
@@ -62,21 +63,20 @@ func Clone(repoPath, cloneURL, token string) error {
 
 // EnsureRepo clones the repository if it is missing, otherwise fast-forwards it.
 // It returns whether a fresh clone was performed.
-func EnsureRepo(repoPath, cloneURL, token string) (cloned bool, err error) {
+func EnsureRepo(ctx context.Context, repoPath, cloneURL, token string) (cloned bool, err error) {
 	if _, openErr := git.PlainOpen(repoPath); openErr != nil {
-		if err := Clone(repoPath, cloneURL, token); err != nil {
+		if err := Clone(ctx, repoPath, cloneURL, token); err != nil {
 			return false, err
 		}
 		return true, nil
 	}
-	if err := pullWithAuth(repoPath, token); err != nil {
-		// A failed pull (e.g. detached/shallow) is non-fatal for scanning.
-		log.Debug().Err(err).Str("repo", repoPath).Msg("pull failed; scanning existing checkout")
+	if err := pullWithAuth(ctx, repoPath, token); err != nil {
+		return false, fmt.Errorf("update repository before scanning: %w", err)
 	}
 	return false, nil
 }
 
-func pullWithAuth(repoPath, token string) error {
+func pullWithAuth(ctx context.Context, repoPath, token string) error {
 	repo, err := git.PlainOpen(repoPath)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func pullWithAuth(repoPath, token string) error {
 	if err != nil {
 		return err
 	}
-	err = wt.Pull(&git.PullOptions{RemoteName: "origin", Auth: authMethod(token), Depth: 1})
+	err = wt.PullContext(ctx, &git.PullOptions{RemoteName: "origin", Auth: authMethod(token), Depth: 1})
 	if err == git.NoErrAlreadyUpToDate {
 		return nil
 	}

@@ -73,6 +73,9 @@ func queryLimit(r *http.Request, fallback int) int {
 	if err != nil || value <= 0 {
 		return fallback
 	}
+	if value > 1000 {
+		return 1000
+	}
 	return value
 }
 func (d *Daemon) systemPrompt(w http.ResponseWriter, r *http.Request) {

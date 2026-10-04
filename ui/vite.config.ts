@@ -1,24 +1,21 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import solidPlugin from 'vite-plugin-solid';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', '');
+  const target = env.CORTEX_API_TARGET || 'http://127.0.0.1:8090';
+  return {
   plugins: [solidPlugin()],
   server: {
     port: 3000,
     proxy: {
       // Local API + OAuth redirects
       '/api': {
-        target: 'http://127.0.0.1:8090',
+        target,
         changeOrigin: true,
       },
-      // Local API
-      '/_': {
-        target: 'http://127.0.0.1:8090',
-        changeOrigin: true,
-      },
-      // ConnectRPC services (cortex.v1.*)
-      '/cortex.v1.': {
-        target: 'http://127.0.0.1:8090',
+      '/mcp': {
+        target,
         changeOrigin: true,
       },
     },
@@ -26,4 +23,5 @@ export default defineConfig({
   build: {
     target: 'esnext',
   },
+  };
 });

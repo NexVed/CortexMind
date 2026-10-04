@@ -38,6 +38,8 @@
 
 .app-main-content {
   flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--s6);
@@ -51,6 +53,9 @@
   padding: var(--s6) var(--s6) var(--s6) 0;
   animation: fadeIn var(--dur-enter) ease;
 }
+
+/* Keep the desktop usable when the native window is made short. */
+.app-layout .sidebar { height: 100%; }
 
 /* Responsive: Desktop S — right panel collapses to bottom */
 @media (max-width: 1279px) {

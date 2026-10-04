@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/NexVed/Cortex/internal/auth"
@@ -14,6 +15,7 @@ import (
 	"github.com/NexVed/Cortex/internal/database"
 	gh "github.com/NexVed/Cortex/internal/github"
 	"github.com/NexVed/Cortex/internal/keychain"
+	"github.com/NexVed/Cortex/internal/localauth"
 	"github.com/NexVed/Cortex/internal/mcp"
 	"github.com/NexVed/Cortex/internal/repositories"
 	"github.com/NexVed/Cortex/internal/services"
@@ -21,22 +23,43 @@ import (
 )
 
 type Daemon struct {
-	Config *config.Config
-	DB     *database.DB
-	Auth   *auth.Service
-	server *http.Server
+	Config         *config.Config
+	DB             *database.DB
+	Auth           *auth.Service
+	server         *http.Server
+	APIToken       string
+	started        time.Time
+	operations     sync.RWMutex
+	scans          sync.Mutex
+	authOperations sync.Mutex
 }
 
-func New(cfg *config.Config) *Daemon {
+func New(cfg *config.Config) (*Daemon, error) {
+	token, err := localauth.Load(cfg.DataDirPath(), keychain.Store{})
+	if err != nil {
+		return nil, err
+	}
 	db, err := database.Open(cfg.DataDirPath())
 	if err != nil {
-		panic(fmt.Errorf("open local SQLite: %w", err))
+		return nil, fmt.Errorf("open local SQLite: %w", err)
 	}
 	onboarding := services.Onboarding{Users: repositories.UserRepository{DB: db}, GitHub: gh.Client{ClientID: cfg.GitHub.ClientID}, DB: db}
-	return &Daemon{Config: cfg, DB: db, Auth: &auth.Service{ClientID: cfg.GitHub.ClientID, GitHub: onboarding, Tokens: keychain.Store{}}}
+	return &Daemon{Config: cfg, DB: db, APIToken: token, started: time.Now(), Auth: &auth.Service{ClientID: cfg.GitHub.ClientID, GitHub: onboarding, Tokens: keychain.Store{}}}, nil
 }
 func (d *Daemon) Start() error {
+	d.server = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", d.Config.Server.Port), Handler: d.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, IdleTimeout: 60 * time.Second}
+	return d.server.ListenAndServe()
+}
+
+func (d *Daemon) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", d.health)
+	mux.HandleFunc("/api/cortex/status", d.status)
+	mux.HandleFunc("/api/cortex/reset", d.reset)
+	mux.HandleFunc("/api/cortex/providers", d.providers)
+	mux.HandleFunc("/api/cortex/knowledge-graph/{id}", d.knowledgeGraph)
+	mux.HandleFunc("/api/github/repositories/{id}/view", d.repositoryView)
+	mux.HandleFunc("/api/github/repositories/{id}/image", d.repositoryImage)
 	mux.Handle("/mcp", mcp.New(d.DB))
 	mux.HandleFunc("/api/cortex/mcp/connections", d.mcpConnections)
 	mux.HandleFunc("/api/cortex/mcp/connections/{id}", d.mcpConnection)
@@ -63,8 +86,10 @@ func (d *Daemon) Start() error {
 	if web.Available() {
 		mux.Handle("/", spaFileServer(web.FS()))
 	}
-	d.server = &http.Server{Addr: fmt.Sprintf("127.0.0.1:%d", d.Config.Server.Port), Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	return d.server.ListenAndServe()
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		writeError(w, fmt.Errorf("API endpoint not found"), http.StatusNotFound)
+	})
+	return d.protect(mux)
 }
 func spaFileServer(ui fs.FS) http.Handler {
 	files := http.FileServer(http.FS(ui))
@@ -78,8 +103,7 @@ func spaFileServer(ui fs.FS) http.Handler {
 			files.ServeHTTP(w, r)
 			return
 		}
-		r2 := new(http.Request)
-		*r2 = *r
+		r2 := r.Clone(r.Context())
 		r2.URL.Path = "/"
 		files.ServeHTTP(w, r2)
 	})
@@ -101,7 +125,9 @@ func (d *Daemon) startGitHub(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	v, err := d.Auth.StartGitHub()
+	d.authOperations.Lock()
+	defer d.authOperations.Unlock()
+	v, err := d.Auth.StartGitHub(r.Context())
 	if err != nil {
 		writeError(w, err, http.StatusBadRequest)
 		return
@@ -109,7 +135,9 @@ func (d *Daemon) startGitHub(w http.ResponseWriter, r *http.Request) {
 	// Desktop login asks us to open GitHub in the user's default browser.
 	// The CortexMind window itself never leaves the native webview.
 	if r.URL.Query().Get("open_browser") == "1" {
-		_ = browser.OpenGitHubLogin(v.URL)
+		if err := browser.OpenGitHubLogin(v.URL); err != nil {
+			v.BrowserError = err.Error()
+		}
 	}
 	writeJSON(w, http.StatusOK, v)
 }
@@ -144,6 +172,9 @@ func (d *Daemon) offline(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("invalid offline profile"), http.StatusBadRequest)
 		return
 	}
+	d.authOperations.Lock()
+	defer d.authOperations.Unlock()
+	d.Auth.CancelGitHub()
 	u, err := d.Auth.GitHub.ContinueOffline(strings.TrimSpace(input.DisplayName))
 	if err != nil {
 		writeError(w, err, http.StatusInternalServerError)
@@ -156,6 +187,8 @@ func (d *Daemon) logout(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	d.authOperations.Lock()
+	defer d.authOperations.Unlock()
 	if err := d.Auth.Logout(); err != nil {
 		writeError(w, err, http.StatusInternalServerError)
 		return
@@ -221,6 +254,8 @@ func (d *Daemon) syncGitHub(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
+	d.authOperations.Lock()
+	defer d.authOperations.Unlock()
 	token, err := d.Auth.CurrentGitHubToken()
 	if err != nil {
 		writeError(w, fmt.Errorf("GitHub is not connected"), http.StatusUnauthorized)
@@ -247,11 +282,9 @@ func (d *Daemon) scanProject(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w)
 		return
 	}
-	token, err := d.Auth.CurrentGitHubToken()
-	if err != nil {
-		writeError(w, err, http.StatusUnauthorized)
-		return
-	}
+	d.scans.Lock()
+	defer d.scans.Unlock()
+	token, _ := d.Auth.CurrentGitHubToken()
 	result, err := (services.ScanService{DB: d.DB, Config: d.Config, GitHubToken: token}).Scan(r.Context(), r.PathValue("id"))
 	if err != nil {
 		writeError(w, err, http.StatusBadGateway)
@@ -278,7 +311,7 @@ func (d *Daemon) collectionRecords(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, page)
 	case http.MethodPost:
 		var input map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil || input == nil {
 			writeError(w, fmt.Errorf("invalid record payload"), http.StatusBadRequest)
 			return
 		}

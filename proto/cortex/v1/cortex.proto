@@ -1,0 +1,272 @@
+syntax = "proto3";
+
+package cortex.v1;
+
+option go_package = "github.com/NexVed/Cortex/gen/cortex/v1;cortexv1";
+
+// ---------------------------------------------------------------------------
+// Common messages
+// ---------------------------------------------------------------------------
+
+message Project {
+  string id = 1;
+  string name = 2;
+  string path = 3;
+  string description = 4;
+  string github_url = 5;
+  string status = 6;          // active | archived | scanning
+  int32 progress = 7;
+  repeated string technologies = 8;
+  string last_scanned = 9;    // RFC3339
+  string last_activity = 10;
+  string icon_color = 11;
+}
+
+message VaultEntry {
+  string id = 1;
+  string project_id = 2;
+  string category = 3;        // architecture | decision | roadmap | task | handoff | memory
+  string title = 4;
+  string content = 5;
+  repeated string tags = 6;
+  bool is_shared = 7;
+  string source_agent = 8;
+  string file_path = 9;
+  int32 version = 10;
+}
+
+message Task {
+  string id = 1;
+  string project_id = 2;
+  string title = 3;
+  string description = 4;
+  string status = 5;          // todo | in_progress | done
+  string priority = 6;        // low | medium | high
+  string assigned_to = 7;
+  string due_date = 8;
+  repeated string linked_files = 9;
+  repeated string tags = 10;
+}
+
+message Handoff {
+  string id = 1;
+  string project_id = 2;
+  string from_agent = 3;
+  string to_agent = 4;
+  string title = 5;
+  string context = 6;
+  string status = 7;          // draft | active | consumed
+  repeated string included_files = 8;
+  string prompt_preview = 9;
+  int32 token_count = 10;
+}
+
+message SearchResult {
+  string id = 1;
+  string collection = 2;
+  string project_id = 3;
+  string title = 4;
+  string excerpt = 5;
+  double score = 6;
+}
+
+// ---------------------------------------------------------------------------
+// ProjectService
+// ---------------------------------------------------------------------------
+
+message ListProjectsRequest {}
+message ListProjectsResponse { repeated Project projects = 1; }
+
+message GetProjectRequest { string id = 1; }
+message GetProjectResponse { Project project = 1; }
+
+message CreateProjectRequest {
+  string name = 1;
+  string path = 2;
+  string description = 3;
+  string github_url = 4;
+}
+message CreateProjectResponse { Project project = 1; }
+
+message UpdateProjectRequest { Project project = 1; }
+message UpdateProjectResponse { Project project = 1; }
+
+message DeleteProjectRequest { string id = 1; }
+message DeleteProjectResponse { bool success = 1; }
+
+message ScanProjectRequest { string id = 1; bool full_scan = 2; }
+message ScanProjectResponse {
+  int32 total_files = 1;
+  int32 indexed_files = 2;
+  map<string, int32> languages = 3;
+  string summary = 4;
+}
+
+message ProjectStatsRequest { string id = 1; }
+message ProjectStatsResponse {
+  int32 total_files = 1;
+  int32 indexed_files = 2;
+  map<string, int32> languages = 3;
+}
+
+service ProjectService {
+  rpc ListProjects(ListProjectsRequest) returns (ListProjectsResponse);
+  rpc GetProject(GetProjectRequest) returns (GetProjectResponse);
+  rpc CreateProject(CreateProjectRequest) returns (CreateProjectResponse);
+  rpc UpdateProject(UpdateProjectRequest) returns (UpdateProjectResponse);
+  rpc DeleteProject(DeleteProjectRequest) returns (DeleteProjectResponse);
+  rpc ScanProject(ScanProjectRequest) returns (ScanProjectResponse);
+  rpc GetProjectStats(ProjectStatsRequest) returns (ProjectStatsResponse);
+}
+
+// ---------------------------------------------------------------------------
+// VaultService
+// ---------------------------------------------------------------------------
+
+message ListVaultEntriesRequest {
+  string project_id = 1;
+  string category = 2;
+}
+message ListVaultEntriesResponse { repeated VaultEntry entries = 1; }
+
+message CreateVaultEntryRequest { VaultEntry entry = 1; }
+message CreateVaultEntryResponse { VaultEntry entry = 1; }
+
+message UpdateVaultEntryRequest { VaultEntry entry = 1; }
+message UpdateVaultEntryResponse { VaultEntry entry = 1; }
+
+message DeleteVaultEntryRequest { string id = 1; }
+message DeleteVaultEntryResponse { bool success = 1; }
+
+service VaultService {
+  rpc ListEntries(ListVaultEntriesRequest) returns (ListVaultEntriesResponse);
+  rpc CreateEntry(CreateVaultEntryRequest) returns (CreateVaultEntryResponse);
+  rpc UpdateEntry(UpdateVaultEntryRequest) returns (UpdateVaultEntryResponse);
+  rpc DeleteEntry(DeleteVaultEntryRequest) returns (DeleteVaultEntryResponse);
+}
+
+// ---------------------------------------------------------------------------
+// TaskService
+// ---------------------------------------------------------------------------
+
+message ListTasksRequest { string project_id = 1; string status = 2; }
+message ListTasksResponse { repeated Task tasks = 1; }
+
+message CreateTaskRequest { Task task = 1; }
+message CreateTaskResponse { Task task = 1; }
+
+message UpdateTaskRequest { Task task = 1; }
+message UpdateTaskResponse { Task task = 1; }
+
+message DeleteTaskRequest { string id = 1; }
+message DeleteTaskResponse { bool success = 1; }
+
+service TaskService {
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+}
+
+// ---------------------------------------------------------------------------
+// HandoffService
+// ---------------------------------------------------------------------------
+
+message ListHandoffsRequest { string project_id = 1; string to_agent = 2; }
+message ListHandoffsResponse { repeated Handoff handoffs = 1; }
+
+message CreateHandoffRequest { Handoff handoff = 1; }
+message CreateHandoffResponse { Handoff handoff = 1; }
+
+message ConsumeHandoffRequest { string id = 1; }
+message ConsumeHandoffResponse { Handoff handoff = 1; }
+
+service HandoffService {
+  rpc ListHandoffs(ListHandoffsRequest) returns (ListHandoffsResponse);
+  rpc CreateHandoff(CreateHandoffRequest) returns (CreateHandoffResponse);
+  rpc ConsumeHandoff(ConsumeHandoffRequest) returns (ConsumeHandoffResponse);
+}
+
+// ---------------------------------------------------------------------------
+// SearchService
+// ---------------------------------------------------------------------------
+
+message SearchRequest {
+  string query = 1;
+  string project_id = 2;
+  repeated string scope = 3;  // files | functions | vault | tasks | handoffs
+  int32 limit = 4;
+}
+message SearchResponse { repeated SearchResult results = 1; }
+
+message SemanticSearchRequest {
+  string query = 1;
+  string project_id = 2;
+  int32 limit = 3;
+}
+message SemanticSearchResponse { repeated SearchResult results = 1; }
+
+service SearchService {
+  rpc Search(SearchRequest) returns (SearchResponse);
+  rpc SemanticSearch(SemanticSearchRequest) returns (SemanticSearchResponse);
+}
+
+// ---------------------------------------------------------------------------
+// ── Activity Service ───────────────────────────────────
+
+message ActivityLogEntry {
+  string id = 1;
+  string project_id = 2;
+  string owner_id = 3;
+  string action = 4;
+  string subject = 5;
+  string metadata_json = 6;
+  string created_at = 7;
+}
+
+message ListActivityRequest {
+  string project_id = 1;
+  int32 limit = 2;
+}
+
+message ListActivityResponse {
+  repeated ActivityLogEntry entries = 1;
+}
+
+service ActivityService {
+  rpc ListActivity(ListActivityRequest) returns (ListActivityResponse);
+}
+
+// ── Auth Service ───────────────────────────────────────
+
+message GetCurrentUserRequest {}
+
+message GetCurrentUserResponse {
+  string id = 1;
+  string display_name = 2;
+  string github_username = 3;
+  string github_avatar_url = 4;
+  string email = 5;
+}
+
+service AuthService {
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse);
+}
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// DaemonService
+// ---------------------------------------------------------------------------
+
+message DaemonStatusRequest {}
+message DaemonStatusResponse {
+  bool ready = 1;
+  string version = 2;
+  int64 uptime_seconds = 3;
+  bool watcher_running = 4;
+  bool semantic_enabled = 5;
+}
+
+service DaemonService {
+  rpc Status(DaemonStatusRequest) returns (DaemonStatusResponse);
+}

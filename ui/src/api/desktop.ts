@@ -80,31 +80,6 @@ export function desktopPlatform(): DesktopPlatform {
 
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.desktopPlatform = desktopPlatform();
-  document.addEventListener('click', (event) => {
-    if (!isWailsDesktop()) return;
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const link = target.closest('a[href]');
-    if (!(link instanceof HTMLAnchorElement)) return;
-    let url: URL;
-    try {
-      url = new URL(link.href, window.location.origin);
-    } catch {
-      return;
-    }
-    if (url.origin === window.location.origin) return;
-    const path = url.pathname.replace(/\/$/, '');
-    const githubLogin = url.protocol === 'https:'
-      && (url.hostname === 'github.com' || url.hostname === 'www.github.com')
-      && (path === '/login/device' || path.startsWith('/login/device/'));
-    if (!githubLogin) return;
-    event.preventDefault();
-    void fetch('/api/auth/github/open-browser', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: url.toString() }),
-    });
-  }, true);
 }
 
 // emitWindowControl fires a bare Wails event that the Go side listens for to

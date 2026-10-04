@@ -18,7 +18,7 @@ function Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 Step "Building the UI (vite)"
 Push-Location (Join-Path $root 'ui')
 try {
-    if (-not (Test-Path 'node_modules')) { npm install; if ($LASTEXITCODE) { throw "npm install failed" } }
+    if (-not (Test-Path 'node_modules')) { npm ci; if ($LASTEXITCODE) { throw "npm ci failed" } }
     npm run build
     if ($LASTEXITCODE) { throw "npm run build failed" }
 } finally { Pop-Location }
@@ -28,7 +28,13 @@ Step "Embedding UI into internal/web/dist"
 $distSrc = Join-Path $root 'ui\dist'
 $distDst = Join-Path $root 'internal\web\dist'
 New-Item -ItemType Directory -Force -Path $distDst | Out-Null
-Get-ChildItem $distDst -Force -Exclude '.gitkeep' | Remove-Item -Recurse -Force
+$embeddedRoot = [IO.Path]::GetFullPath($distDst)
+if ($embeddedRoot -ne [IO.Path]::GetFullPath((Join-Path $root 'internal\web\dist'))) { throw 'Invalid embedded UI directory' }
+Get-ChildItem -LiteralPath $embeddedRoot -Force | Where-Object Name -ne '.gitkeep' | ForEach-Object {
+    $embeddedChild = [IO.Path]::GetFullPath($_.FullName)
+    if (-not $embeddedChild.StartsWith($embeddedRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'UI cleanup escaped its directory' }
+    Remove-Item -LiteralPath $embeddedChild -Recurse -Force
+}
 Copy-Item (Join-Path $distSrc '*') $distDst -Recurse -Force
 
 # ── 3. Icon + version resource ──────────────────────────
@@ -37,7 +43,7 @@ Step "Generating white-background app icon"
 
 Step "Embedding icon + version info (goversioninfo)"
 $syso = Join-Path $root 'cmd\cortexd\resource.syso'
-go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@latest `
+go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.7.0 `
     -64 `
     -icon (Join-Path $root 'build\windows\icon.ico') `
     -o $syso `

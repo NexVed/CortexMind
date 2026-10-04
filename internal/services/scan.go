@@ -29,44 +29,69 @@ type ScanResult struct {
 }
 
 func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, error) {
-	_ = ctx
-	repo, err := s.DB.Repository(projectID)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+	project, err := s.DB.Project(projectID)
 	if err != nil {
-		return nil, fmt.Errorf("repository not found: %w", err)
+		return nil, fmt.Errorf("project not found: %w", err)
 	}
-	token := s.GitHubToken
-	if token == "" {
-		return nil, fmt.Errorf("GitHub is not connected")
+	path := project.Path
+	if repo, repoErr := s.DB.Repository(projectID); repoErr == nil {
+		if s.GitHubToken == "" && repo.Private {
+			return nil, fmt.Errorf("connect GitHub before scanning this private repository")
+		}
+		path = filepath.Join(s.Config.DataDirPath(), "repositories", strings.ReplaceAll(repo.FullName, "/", "__"))
+		if _, err = cgit.EnsureRepo(ctx, path, repo.CloneURL, s.GitHubToken); err != nil {
+			return nil, err
+		}
 	}
-	path := filepath.Join(s.Config.DataDirPath(), "repositories", strings.ReplaceAll(repo.FullName, "/", "__"))
-	if _, err = cgit.EnsureRepo(path, repo.CloneURL, token); err != nil {
+	if path == "" {
+		return nil, fmt.Errorf("select a local project directory before scanning")
+	}
+	path, err = filepath.Abs(path)
+	if err != nil {
 		return nil, err
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return nil, fmt.Errorf("project directory does not exist")
 	}
 	count := 0
 	langs := map[string]bool{}
+	files := []map[string]any{}
 	store := database.RecordStore{DB: s.DB}
 	err = filepath.Walk(path, func(p string, info os.FileInfo, e error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if e != nil {
-			return nil
+			return e
 		}
 		if info.IsDir() {
-			if info.Name() == ".git" || info.Name() == "node_modules" || info.Name() == "vendor" {
-				return filepath.SkipDir
+			if p != path {
+				for _, ignored := range append([]string{".git", "node_modules", "vendor"}, s.Config.Scanner.IgnoredDirs...) {
+					if info.Name() == ignored {
+						return filepath.SkipDir
+					}
+				}
 			}
 			return nil
 		}
-		if info.Size() > int64(s.Config.Scanner.MaxFileSizeKB)*1024 {
+		if !info.Mode().IsRegular() || info.Size() > int64(s.Config.Scanner.MaxFileSizeKB)*1024 {
 			return nil
 		}
 		if lang := scanner.DetectLanguage(p); lang != "" {
 			count++
 			langs[lang] = true
 			rel, _ := filepath.Rel(path, p)
-			_, _ = store.Create("file_index", map[string]any{"project": projectID, "path": filepath.ToSlash(rel), "language": lang, "size_bytes": info.Size(), "last_indexed": time.Now().UTC().Format(time.RFC3339)})
+			files = append(files, map[string]any{"project": projectID, "path": filepath.ToSlash(rel), "language": lang, "size_bytes": info.Size(), "last_indexed": time.Now().UTC().Format(time.RFC3339)})
 		}
 		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+	if err = store.ReplaceProjectFiles(ctx, projectID, files); err != nil {
 		return nil, err
 	}
 	if err := s.DB.SaveRepositoryScan(projectID, path, count); err != nil {
@@ -83,5 +108,5 @@ func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, e
 	for lang := range langs {
 		frameworks = append(frameworks, lang)
 	}
-	return &ScanResult{Name: repo.Name, ProjectID: projectID, IndexedFiles: count, Frameworks: frameworks}, nil
+	return &ScanResult{Name: project.Name, ProjectID: projectID, IndexedFiles: count, Frameworks: frameworks}, nil
 }

@@ -329,6 +329,7 @@
 
 /* --- Toggle Switch --- */
 .toggle-switch {
+	flex-shrink: 0;
   position: relative;
   width: 36px;
   height: 20px;
@@ -361,6 +362,7 @@
 /* --- Setting Row --- */
 .setting-row {
   display: flex;
+  gap: var(--s3);
   align-items: center;
   justify-content: space-between;
   padding: var(--s4) 0;
@@ -372,6 +374,7 @@
 }
 
 .setting-info {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -386,6 +389,19 @@
 .setting-description {
   font-size: 12px;
   color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 800px) {
+  .split-layout { flex-direction: column; height: auto; }
+  .split-rail { width: 100%; min-width: 0; flex-direction: row; flex-wrap: wrap; }
+  .split-content { width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .setting-row { flex-wrap: wrap; }
+  .setting-info { flex: 1 1 150px; }
+  .setting-row input, .setting-row select { max-width: 100%; min-width: 0; }
 }
 
 /* --- Log Stream --- */

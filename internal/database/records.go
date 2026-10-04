@@ -1,14 +1,40 @@
 package database
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"sort"
 	"time"
 )
+
+// ReplaceProjectFiles commits an index snapshot without accumulating old scan rows.
+func (s RecordStore) ReplaceProjectFiles(ctx context.Context, projectID string, files []map[string]any) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM local_records WHERE collection_name='file_index' AND project_id=?`, projectID); err != nil {
+		return err
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, file := range files {
+		id, err := recordID()
+		if err != nil {
+			return err
+		}
+		raw, err := json.Marshal(file)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO local_records(collection_name,id,project_id,payload,created,updated) VALUES('file_index',?,?,?,?,?)`, id, projectID, string(raw), now, now); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
 
 type RecordStore struct{ DB *DB }
 type Page struct {
@@ -19,14 +45,7 @@ type Page struct {
 	Items      []map[string]any `json:"items"`
 }
 
-func (s RecordStore) ensure() error {
-	_, err := s.DB.Exec(`CREATE TABLE IF NOT EXISTS local_records (collection_name TEXT NOT NULL, id TEXT PRIMARY KEY, project_id TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_local_records_collection_project ON local_records(collection_name,project_id,updated DESC);`)
-	return err
-}
 func (s RecordStore) List(collection, projectID string, limit int) (Page, error) {
-	if err := s.ensure(); err != nil {
-		return Page{}, err
-	}
 	q := `SELECT id,payload,created,updated FROM local_records WHERE collection_name=?`
 	args := []any{collection}
 	if projectID != "" {
@@ -53,6 +72,9 @@ func (s RecordStore) List(collection, projectID string, limit int) (Page, error)
 		if err := json.Unmarshal([]byte(raw), &item); err != nil {
 			return Page{}, err
 		}
+		if item == nil {
+			return Page{}, fmt.Errorf("record %s has an invalid null payload", id)
+		}
 		item["id"] = id
 		item["created"] = created
 		item["updated"] = updated
@@ -61,9 +83,6 @@ func (s RecordStore) List(collection, projectID string, limit int) (Page, error)
 	return Page{Page: 1, PerPage: len(items), TotalPages: 1, TotalItems: len(items), Items: items}, rows.Err()
 }
 func (s RecordStore) Get(collection, id string) (map[string]any, error) {
-	if err := s.ensure(); err != nil {
-		return nil, err
-	}
 	var raw, created, updated string
 	err := s.DB.QueryRow(`SELECT payload,created,updated FROM local_records WHERE collection_name=? AND id=?`, collection, id).Scan(&raw, &created, &updated)
 	if err != nil {
@@ -72,6 +91,9 @@ func (s RecordStore) Get(collection, id string) (map[string]any, error) {
 	var item map[string]any
 	if err = json.Unmarshal([]byte(raw), &item); err != nil {
 		return nil, err
+	}
+	if item == nil {
+		return nil, fmt.Errorf("record %s has an invalid null payload", id)
 	}
 	item["id"] = id
 	item["created"] = created
@@ -98,15 +120,12 @@ func (s RecordStore) Update(collection, id string, patch map[string]any) (map[st
 	return s.save(collection, id, current, false)
 }
 func (s RecordStore) Delete(collection, id string) error {
-	if err := s.ensure(); err != nil {
-		return err
-	}
 	_, err := s.DB.Exec(`DELETE FROM local_records WHERE collection_name=? AND id=?`, collection, id)
 	return err
 }
 func (s RecordStore) save(collection, id string, item map[string]any, create bool) (map[string]any, error) {
-	if err := s.ensure(); err != nil {
-		return nil, err
+	if item == nil {
+		return nil, fmt.Errorf("record payload must be a JSON object")
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	created := now
@@ -145,7 +164,3 @@ func recordID() (string, error) {
 	}
 	return hex.EncodeToString(bytes), nil
 }
-
-var _ = fmt.Sprintf
-var _ = regexp.MustCompile
-var _ = sort.Strings

@@ -121,16 +121,12 @@ func (s *Server) callTool(w http.ResponseWriter, req request, connection *reposi
 			return
 		}
 	}
-	projectID, _ := args["project_id"].(string)
-	projectID = strings.TrimSpace(projectID)
-	if projectID == "" {
-		s.writeError(w, req.ID, -32602, "project_id is required")
-		return
-	}
-	if projectID != connection.ProjectID {
+	projectID := stringValue(args["project_id"])
+	if projectID != "" && projectID != connection.ProjectID {
 		s.writeToolError(w, req.ID, "connection is not authorized for this project")
 		return
 	}
+	projectID = connection.ProjectID
 	if call.Name == "cortex_save_memory" {
 		if stringValue(args["ide"]) == "" {
 			args["ide"] = connection.IDE
@@ -236,8 +232,10 @@ func toolDefinitions() []any {
 	}
 }
 func tool(name, description string, properties map[string]any, required []string) map[string]any {
-	properties["project_id"] = stringSchema("Project ID bound to this connection.")
-	required = append(required, "project_id")
+	properties["project_id"] = stringSchema("Optional project ID. Defaults to the project bound to this connection.")
+	if required == nil {
+		required = []string{}
+	}
 	return map[string]any{"name": name, "description": description, "inputSchema": map[string]any{"type": "object", "additionalProperties": false, "properties": properties, "required": required}}
 }
 func stringSchema(description string) map[string]any {

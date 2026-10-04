@@ -3,7 +3,7 @@
    ============================================================ */
 
 .mcp-page {
-  padding: var(--s6);
+  min-width: 0;
   display: flex;
   flex-direction: column;
   animation: fadeIn var(--dur-enter) ease;
@@ -94,10 +94,11 @@
 /* ── Body grid ────────────────────────────────────────── */
 .mcp-grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 380px);
   gap: var(--s5);
   align-items: start;
 }
+.mcp-main, .mcp-aside { min-width: 0; }
 
 .mcp-panel {
   background: var(--bg-surface);
@@ -735,7 +736,15 @@
 }
 
 @media (max-width: 640px) {
+  .mcp-page .page-header { flex-wrap: wrap; gap: var(--s3); }
+  .mcp-page .page-title-row { min-width: 0; }
+  .mcp-page .page-header-actions { flex-wrap: wrap; }
   .mcp-status-strip {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .status-tile { min-width: 0; padding: var(--s3); }
+  .status-tile-label, .status-tile-value { flex-wrap: wrap; overflow-wrap: anywhere; }
+  .conn-title, .conn-meta { flex-wrap: wrap; overflow-wrap: anywhere; }
+  .conn-item { flex-wrap: wrap; }
+  .conn-info { flex: 1 1 140px; }
 }

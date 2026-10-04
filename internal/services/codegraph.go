@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/NexVed/Cortex/internal/database"
+	"github.com/NexVed/Cortex/internal/repofiles"
 	"github.com/NexVed/Cortex/internal/scanner"
 )
 
@@ -124,7 +125,7 @@ func (s CodeGraphService) Build(projectID string) (*CodeGraph, error) {
 		file := files[filePath]
 		fileID := "file:" + filePath
 		graph.addFileTree(file)
-		content, readErr := os.ReadFile(path.Join(repoPath, filepathFromSlash(filePath)))
+		content, readErr := repofiles.ReadFile(repoPath, filePath)
 		if readErr != nil {
 			continue
 		}
@@ -313,7 +314,7 @@ func resolveLocalImport(sourcePath, imported, language, goModule string, files m
 }
 
 func readGoModule(repoPath string) string {
-	content, err := os.ReadFile(path.Join(repoPath, "go.mod"))
+	content, err := repofiles.ReadFile(repoPath, "go.mod")
 	if err != nil {
 		return ""
 	}
@@ -333,7 +334,7 @@ func readManifestPackages(repoPath string) []string {
 			packages[name] = true
 		}
 	}
-	if raw, err := os.ReadFile(path.Join(repoPath, "package.json")); err == nil {
+	if raw, err := repofiles.ReadFile(repoPath, "package.json"); err == nil {
 		var manifest struct {
 			Dependencies         map[string]any `json:"dependencies"`
 			DevDependencies      map[string]any `json:"devDependencies"`
@@ -348,7 +349,7 @@ func readManifestPackages(repoPath string) []string {
 			}
 		}
 	}
-	if raw, err := os.ReadFile(path.Join(repoPath, "go.mod")); err == nil {
+	if raw, err := repofiles.ReadFile(repoPath, "go.mod"); err == nil {
 		insideRequire := false
 		for _, line := range strings.Split(string(raw), "\n") {
 			trimmed := strings.TrimSpace(line)
@@ -371,7 +372,7 @@ func readManifestPackages(repoPath string) []string {
 			}
 		}
 	}
-	if raw, err := os.ReadFile(path.Join(repoPath, "requirements.txt")); err == nil {
+	if raw, err := repofiles.ReadFile(repoPath, "requirements.txt"); err == nil {
 		for _, line := range strings.Split(string(raw), "\n") {
 			name := strings.TrimSpace(strings.Split(line, "#")[0])
 			name = strings.SplitN(name, "=", 2)[0]

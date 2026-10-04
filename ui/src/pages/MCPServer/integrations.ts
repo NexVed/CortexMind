@@ -73,13 +73,13 @@ export const PLATFORMS: PlatformIntegration[] = [
     language: 'toml',
     file: '~/.codex/config.toml',
     build: (endpoint, token) =>
-      `[mcp_servers.cortex]\ncommand = "npx"\nargs = [\n  "-y", "mcp-remote",\n  "${endpoint}",\n  "--header", "Authorization: Bearer ${token}"\n]`,
+      `[mcp_servers.cortex]\nurl = "${endpoint}"\nhttp_headers = { Authorization = "Bearer ${token}" }`,
     steps: [
-      'Codex CLI talks to MCP servers over stdio, so we bridge to CORTEX with mcp-remote.',
-      'Add the block to ~/.codex/config.toml (requires Node/npx installed).',
-      'Restart Codex; the cortex_* tools become available.',
+      'Add the block to ~/.codex/config.toml on the same Windows machine as CortexMind.',
+      'Restart Codex and run `codex mcp list` to confirm the server is configured.',
+      'Open a new Codex session; the cortex_* tools should be available.',
     ],
-    note: 'Needs Node.js for the npx mcp-remote bridge.',
+    note: 'The token is a secret. Keep config.toml out of shared repositories.',
   },
   {
     id: 'gemini-cli',

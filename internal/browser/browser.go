@@ -51,7 +51,7 @@ func openDefaultBrowser(rawURL string) error {
 	var command *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", rawURL)
+		return openWindowsURL(rawURL)
 	case "darwin":
 		command = exec.Command("open", rawURL)
 	case "linux":
@@ -90,14 +90,14 @@ func linuxOpenCommand(rawURL string) *exec.Cmd {
 
 func sanitizedLinuxEnv(environ []string) []string {
 	drop := map[string]struct{}{
-		"LD_LIBRARY_PATH": {},
-		"LD_PRELOAD":      {},
-		"PYTHONPATH":      {},
-		"PYTHONHOME":      {},
-		"PERLLIB":         {},
-		"APPDIR":          {},
-		"APPIMAGE":        {},
-		"ARGV0":           {},
+		"LD_LIBRARY_PATH":          {},
+		"LD_PRELOAD":               {},
+		"PYTHONPATH":               {},
+		"PYTHONHOME":               {},
+		"PERLLIB":                  {},
+		"APPDIR":                   {},
+		"APPIMAGE":                 {},
+		"ARGV0":                    {},
 		"APPIMAGE_EXTRACT_AND_RUN": {},
 	}
 	out := make([]string, 0, len(environ))

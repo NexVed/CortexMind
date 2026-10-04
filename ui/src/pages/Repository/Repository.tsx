@@ -6,123 +6,94 @@ import {
   Sparkles, ScanSearch, Copy, Network, FileKey, Layers, HardDrive, Clock, Scan
 } from 'lucide-solid';
 import { useProject, useScanProject } from '../../api/queries';
-import { getRepositoryInsights } from '../../api/client';
+import { getRepositoryInsights, getRepositoryView, getRepositoryImage, type RepositoryView } from '../../api/client';
+import { settings } from '../../api/settings';
 import './Repository.css';
-function rewriteReadmeImageSources(html: string, repositoryURL: string, branch?: string): string {
-  const match = repositoryURL.match(/github\.com\/([^/]+)\/([^/#]+)/);
-  if (!match) return html;
-  const owner = match[1];
-  const repo = match[2].replace(/\.git$/, '');
-  const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'HEAD'}/`;
-  return html.replace(/(<img\b[^>]*?\bsrc=["'])([^"']+)(["'])/gi, (_all, before, source, after) => {
-    if (/^(https?:|data:|#)/i.test(source)) {
-      return before + source.replace(`https://github.com/${owner}/${repo}/blob/`, `https://raw.githubusercontent.com/${owner}/${repo}/`) + after;
-    }
+async function prepareReadme(view: RepositoryView, projectId: string): Promise<string> {
+  const document = new DOMParser().parseFromString(view.readme_html, 'text/html');
+  const repoBase = `https://github.com/${view.repo.full_name}/`;
+  const branch = view.repo.default_branch;
+  const rawPrefix = `https://raw.githubusercontent.com/${view.repo.full_name}/${branch}/`;
+  const directory = view.readme_path.includes('/') ? view.readme_path.slice(0, view.readme_path.lastIndexOf('/') + 1) : '';
+  const base = rawPrefix + directory;
+  const images = Array.from(document.querySelectorAll('img'));
+  await Promise.all(images.map(async (image, index) => {
+    const source = image.getAttribute('src') || '';
     try {
-      return before + new URL(source.replace(/^\.\//, ''), rawBase).href + after;
+      if (source.startsWith('data:image/')) return;
+      let resolved = new URL(source, source.startsWith('/') ? 'https://github.com' : base).href;
+      for (const kind of ['blob', 'raw']) resolved = resolved.replace(`${repoBase}${kind}/${branch}/`, rawPrefix);
+      if (resolved.startsWith(rawPrefix) && index < 16) {
+        const path = decodeURIComponent(resolved.slice(rawPrefix.length).split(/[?#]/)[0]);
+        image.setAttribute('src', await getRepositoryImage(projectId, path, branch));
+      } else if (resolved.startsWith('https://')) {
+        image.setAttribute('src', resolved);
+      } else image.removeAttribute('src');
+      image.setAttribute('loading', 'lazy');
+      image.setAttribute('referrerpolicy', 'no-referrer');
     } catch {
-      return before + source + after;
+      image.removeAttribute('src');
+      image.setAttribute('title', 'Image unavailable');
     }
-  });
+  }));
+  for (const link of document.querySelectorAll('a')) {
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('#')) continue;
+    try {
+      const resolved = new URL(href, `${repoBase}blob/${encodeURIComponent(branch)}/${directory}`);
+      if (!['https:', 'http:', 'mailto:'].includes(resolved.protocol)) { link.removeAttribute('href'); continue; }
+      link.href = resolved.href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    } catch { link.removeAttribute('href'); }
+  }
+  return document.body.innerHTML;
+}
+
+function readmeDocument(body: string): string {
+  const dark = settings.theme === 'Dark' || (settings.theme === 'System' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>
+    :root{color-scheme:${dark ? 'dark' : 'light'}}body{font:15px/1.65 system-ui,sans-serif;margin:20px;color:${dark ? '#e6edf3' : '#24292f'};overflow-wrap:anywhere}img{max-width:100%;height:auto}a{color:${dark ? '#58a6ff' : '#0969da'}}pre{padding:16px;overflow:auto;background:${dark ? '#161b22' : '#f6f8fa'};border-radius:6px}code{font:13px/1.6 monospace}table{display:block;max-width:100%;overflow:auto;border-collapse:collapse}td,th{border:1px solid #80808055;padding:6px 12px}blockquote{border-left:3px solid #80808055;padding-left:16px;margin-left:0}h1,h2{border-bottom:1px solid #80808033;padding-bottom:8px}
+    </style></head><body>${body}</body></html>`;
 }
 
 export const RepositoryPage: Component = () => {
   const params = useParams();
-  const projectId = params.id;
+  const projectId = () => params.id;
 
-  const projectQuery = useProject(() => projectId);
+  const projectQuery = useProject(projectId);
   const project = () => projectQuery.data;
   const scanM = useScanProject();
-  const [isScanning, setIsScanning] = createSignal(false);  const [insights] = createResource(() => projectId, async (id) => id ? getRepositoryInsights(id).catch(() => null) : null);
+  const [isScanning, setIsScanning] = createSignal(false);
+  const [scanError, setScanError] = createSignal('');
+  const [insights, { refetch: refetchInsights }] = createResource(projectId, async (id) => id ? getRepositoryInsights(id) : null);
   const formatSize = (bytes?: number) => { if (!bytes) return '—'; const units = ['B', 'KB', 'MB', 'GB']; let value = bytes; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; };
 
   const handleScan = async () => {
-    if (!projectId) return;
+    if (!projectId()) return;
     setIsScanning(true);
+    setScanError('');
     try {
-      await scanM.mutateAsync(projectId);
-    } catch (err) {
-      console.error('Scan failed:', err);
+      await scanM.mutateAsync(projectId());
+      await refetchInsights();
+    } catch (err: any) {
+      setScanError(err?.message || 'Scan failed');
     } finally {
       setIsScanning(false);
     }
   };
 
   const [repoInfo] = createResource(
-    () => project()?.github_url,
-    async (url) => {
-      try {
-        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-        if (!match) return null;
-        const [_, owner, repo] = match;
-        const cleanRepo = repo.replace('.git', '');
-        
-        const [repoRes, commitRes] = await Promise.all([
-          fetch(`https://api.github.com/repos/${owner}/${cleanRepo}`),
-          fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/commits?per_page=1`)
-        ]);
-        
-        return {
-          repo: repoRes.ok ? await repoRes.json() : null,
-          commit: commitRes.ok ? (await commitRes.json())[0] : null
-        };
-      } catch {
-        return null;
-      }
-    }
+    () => project()?.github_url ? projectId() : null,
+    getRepositoryView
   );
-
-  const [repoFiles] = createResource(
-    () => project()?.github_url,
-    async (url) => {
-      try {
-        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-        if (!match) return [];
-        const [_, owner, repo] = match;
-        const cleanRepo = repo.replace('.git', '');
-        const res = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents`);
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.map((item: any) => ({
-          name: item.name,
-          type: item.type === 'dir' ? 'folder' : 'file',
-          message: 'Synced from GitHub',
-          date: ''
-        })).sort((a: any, b: any) => {
-          if (a.type === 'folder' && b.type !== 'folder') return -1;
-          if (a.type !== 'folder' && b.type === 'folder') return 1;
-          return a.name.localeCompare(b.name);
-        });
-      } catch {
-        return [];
-      }
-    }
-  );
-
-  const [repoReadme] = createResource(
-    () => project()?.github_url,
-    async (url) => {
-      try {
-        const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
-        if (!match) return null;
-        const [_, owner, repo] = match;
-        const cleanRepo = repo.replace('.git', '');
-        const res = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/readme`, {
-          headers: {
-            'Accept': 'application/vnd.github.v3.html'
-          }
-        });
-        if (!res.ok) return null;
-        return rewriteReadmeImageSources(
-          await res.text(),
-          url,
-          repoInfo()?.repo?.default_branch || 'HEAD'
-        );
-      } catch {
-        return null;
-      }
-    }
-  );
+  const repoFiles = () => (repoInfo()?.files || []).map((file) => ({
+    name: file.name,
+    type: file.type === 'dir' ? 'folder' : 'file',
+    message: 'Synced from GitHub',
+    date: '',
+  })).sort((a, b) => a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'folder' ? -1 : 1);
+  const [repoReadme] = createResource(repoInfo, (view) => prepareReadme(view, projectId()));
 
   return (
     <div class="repo-page">
@@ -131,7 +102,9 @@ export const RepositoryPage: Component = () => {
           <div class="repo-title-area">
             <Github size={24} />
             <h1 class="repo-name">{project()?.name || 'Loading...'}</h1>
-          <span class="repo-badge private">Private</span>
+          <span class={`repo-badge ${repoInfo()?.repo?.private ? 'private' : ''}`}>
+            {project()?.github_url ? (repoInfo.loading ? 'Loading…' : repoInfo()?.repo ? (repoInfo()!.repo.private ? 'Private' : 'Public') : 'Unavailable') : 'Local'}
+          </span>
         </div>
         <div class="repo-header-actions">
           <div class="action-group">
@@ -149,6 +122,11 @@ export const RepositoryPage: Component = () => {
         </div>
       </div>
 
+      <Show when={repoInfo.error || scanError()}>
+        <div role="alert" style={{ color: 'var(--red)', padding: '12px', 'overflow-wrap': 'anywhere' }}>
+          {scanError() || repoInfo.error?.message || 'Could not load repository. Reconnect GitHub and try again.'}
+        </div>
+      </Show>
       <div class="repo-toolbar">
         <div class="branch-selector">
           <button class="btn secondary small"><GitBranch size={14} /> {repoInfo()?.repo?.default_branch || 'main'} <ChevronDown size={14} /></button>
@@ -190,7 +168,7 @@ export const RepositoryPage: Component = () => {
             </div>
             
             <div class="file-list">
-              <Show when={repoFiles()?.length > 0} fallback={<div style="padding: 24px; text-align: center; color: var(--text-muted);">No files available. The repository might be private or empty.</div>}>
+              <Show when={repoFiles()?.length > 0} fallback={<div style="padding: 24px; text-align: center; color: var(--text-muted);">No files available. Scan a local project or check the repository connection.</div>}>
                 <For each={repoFiles()}>
                   {(file) => (
                     <div class="file-row">
@@ -207,12 +185,12 @@ export const RepositoryPage: Component = () => {
             </div>
           </div>
           
-          <Show when={repoReadme()}>
+          <Show when={repoReadme()} fallback={<div class="small" style={{ padding: '16px' }}>{repoReadme.loading ? 'Loading README…' : repoReadme.error ? 'Could not load README.' : 'No README available.'}</div>}>
             <div class="readme-container">
               <div class="readme-header">
                 <FileText size={16} /> README.md
               </div>
-              <div class="readme-content" innerHTML={repoReadme()!} />
+              <iframe class="readme-frame" title="Repository README" sandbox="allow-popups allow-popups-to-escape-sandbox" srcdoc={readmeDocument(repoReadme()!)} />
             </div>
           </Show>
         </div>

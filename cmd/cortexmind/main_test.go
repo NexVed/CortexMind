@@ -1,42 +1,45 @@
 package main
 
 import (
+	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/NexVed/Cortex/internal/localauth"
 )
 
-// TestWaitForServer checks the backend-readiness gate that decides whether the
-// desktop shell boots its own daemon or reuses a running one. If this logic
-// breaks, the window would either load before the server is up or hang forever.
 func TestWaitForServer(t *testing.T) {
-	// A closed/unused port must be reported dead and time out with an error.
-	if serverAlive("127.0.0.1:1") {
-		t.Fatal("serverAlive reported a dead port as alive")
+	token := "test-local-credential"
+	if serverAlive("127.0.0.1:1", token) {
+		t.Fatal("unused port reported alive")
 	}
-	if err := waitForServer("127.0.0.1:1", 300*time.Millisecond, nil); err == nil {
-		t.Fatal("waitForServer returned nil for an unreachable address")
+	if err := waitForServer("127.0.0.1:1", token, 100*time.Millisecond, nil); err == nil {
+		t.Fatal("unreachable backend reported ready")
 	}
-
-	// A real listener must be detected as alive and satisfy the wait.
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("listen: %v", err)
+	unrelated := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" {
+			t.Error("credential sent to an unverified server")
+		}
+		_, _ = w.Write([]byte(`{"app":"cortexMind","ready":true,"proof":"forged"}`))
+	}))
+	defer unrelated.Close()
+	if serverAlive(strings.TrimPrefix(unrelated.URL, "http://"), token) {
+		t.Fatal("unrelated listener accepted as CortexMind")
 	}
-	defer ln.Close()
-	addr := ln.Addr().String()
-
-	if !serverAlive(addr) {
-		t.Fatal("serverAlive reported a live listener as dead")
+	trusted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"app": "cortexMind", "ready": true, "proof": localauth.Proof(token, r.URL.Query().Get("challenge"))})
+	}))
+	defer trusted.Close()
+	if err := waitForServer(strings.TrimPrefix(trusted.URL, "http://"), token, time.Second, nil); err != nil {
+		t.Fatal(err)
 	}
-	if err := waitForServer(addr, 2*time.Second, nil); err != nil {
-		t.Fatalf("waitForServer failed against a live listener: %v", err)
-	}
-
-	// A daemon startup error must abort the wait immediately.
 	errCh := make(chan error, 1)
 	errCh <- net.ErrClosed
-	if err := waitForServer("127.0.0.1:1", 5*time.Second, errCh); err == nil {
-		t.Fatal("waitForServer ignored a backend startup error")
+	if err := waitForServer("127.0.0.1:1", token, time.Second, errCh); err == nil {
+		t.Fatal("startup failure ignored")
 	}
 }

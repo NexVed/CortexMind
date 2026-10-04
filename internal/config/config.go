@@ -22,9 +22,10 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port    int    `mapstructure:"port"`
-	MCPPort int    `mapstructure:"mcp_port"`
-	DataDir string `mapstructure:"data_dir"`
+	Port      int    `mapstructure:"port"`
+	MCPPort   int    `mapstructure:"mcp_port"`
+	DataDir   string `mapstructure:"data_dir"`
+	DevOrigin string `mapstructure:"dev_origin"`
 }
 
 // DefaultGitHubClientID is public by design and identifies the CortexMind desktop OAuth app.
@@ -88,6 +89,7 @@ func Load() *Config {
 	_ = v.BindEnv("log_level", "CORTEX_LOG_LEVEL")
 	_ = v.BindEnv("search.ollama_url", "CORTEX_OLLAMA_URL")
 	_ = v.BindEnv("server.data_dir", "CORTEX_DATA_DIR")
+	_ = v.BindEnv("server.dev_origin", "CORTEX_DEV_ORIGIN")
 
 	cfg := &Config{}
 	if err := v.Unmarshal(cfg); err != nil {
@@ -105,6 +107,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", d.Server.Port)
 	v.SetDefault("server.mcp_port", d.Server.MCPPort)
 	v.SetDefault("server.data_dir", d.Server.DataDir)
+	v.SetDefault("server.dev_origin", "")
 	v.SetDefault("github.client_id", d.GitHub.ClientID)
 	v.SetDefault("scanner.interval_minutes", d.Scanner.IntervalMinutes)
 	v.SetDefault("scanner.max_file_size_kb", d.Scanner.MaxFileSizeKB)
