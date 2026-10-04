@@ -17,6 +17,7 @@ type MCPConnectionService struct {
 }
 
 type CreateMCPConnectionInput struct {
+	Scope     string `json:"scope"`
 	ProjectID string `json:"project_id"`
 	IDE       string `json:"ide"`
 	Label     string `json:"label"`
@@ -32,8 +33,12 @@ func (s MCPConnectionService) Create(input CreateMCPConnectionInput) (*CreatedMC
 	input.ProjectID = strings.TrimSpace(input.ProjectID)
 	input.IDE = strings.TrimSpace(input.IDE)
 	input.Label = strings.TrimSpace(input.Label)
-	if input.ProjectID == "" {
-		return nil, fmt.Errorf("project_id is required")
+	if input.Scope == "all" {
+		input.ProjectID = repositories.AllProjects
+	} else if input.Scope != "" && input.Scope != "project" {
+		return nil, fmt.Errorf("scope must be all or project")
+	} else if input.ProjectID == "" || input.ProjectID == repositories.AllProjects {
+		return nil, fmt.Errorf("project_id is required for a project connection; use scope all for all projects")
 	}
 	if input.IDE == "" {
 		return nil, fmt.Errorf("ide is required")
@@ -41,8 +46,10 @@ func (s MCPConnectionService) Create(input CreateMCPConnectionInput) (*CreatedMC
 	if len(input.IDE) > 64 || len(input.Label) > 160 {
 		return nil, fmt.Errorf("connection details are too long")
 	}
-	if _, err := s.Projects.Project(input.ProjectID); err != nil {
-		return nil, fmt.Errorf("project not found")
+	if input.ProjectID != repositories.AllProjects {
+		if _, err := s.Projects.Project(input.ProjectID); err != nil {
+			return nil, fmt.Errorf("project not found")
+		}
 	}
 	token, err := newMCPToken()
 	if err != nil {

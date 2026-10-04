@@ -2,8 +2,8 @@
 # GitHub Device Flow uses the public client ID below. No client secret is needed.
 
 server:
-  port: 8090
-  mcp_port: 8091
+  port: 47831
+  mcp_port: 47832
   data_dir: ~/.cortex
 
 github:

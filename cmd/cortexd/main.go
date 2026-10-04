@@ -48,7 +48,7 @@ func parseArgs(cfg *config.Config, args []string) (bool, error) {
 		return false, err
 	}
 	if flags.NArg() != 0 {
-		return false, fmt.Errorf("unknown command; use cortexd [serve] [--http 127.0.0.1:8090] [--no-browser]")
+		return false, fmt.Errorf("unknown command; use cortexd [serve] [--http 127.0.0.1:%d] [--no-browser]", cfg.Server.Port)
 	}
 	host, rawPort, err := net.SplitHostPort(*addr)
 	if err != nil {

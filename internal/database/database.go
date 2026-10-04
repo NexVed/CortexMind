@@ -50,6 +50,10 @@ func Open(dataDir string) (*DB, error) {
 	db := &DB{conn}
 	conn.SetMaxOpenConns(4)
 	conn.SetMaxIdleConns(4)
+	if _, err = db.Exec(`CREATE TABLE IF NOT EXISTS project_worktrees (project_id TEXT PRIMARY KEY, local_path TEXT NOT NULL)`); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	if _, err = db.Exec(`PRAGMA journal_mode = WAL; CREATE TABLE IF NOT EXISTS local_records (collection_name TEXT NOT NULL, id TEXT PRIMARY KEY, project_id TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL, created TEXT NOT NULL, updated TEXT NOT NULL); CREATE INDEX IF NOT EXISTS idx_local_records_collection_project ON local_records(collection_name,project_id,updated DESC); CREATE TABLE IF NOT EXISTS mcp_connections (id TEXT PRIMARY KEY, project_id TEXT NOT NULL, ide TEXT NOT NULL, label TEXT NOT NULL, client_name TEXT NOT NULL DEFAULT '', token_hash TEXT NOT NULL UNIQUE, enabled INTEGER NOT NULL DEFAULT 1, created TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, last_used TEXT NOT NULL DEFAULT ''); CREATE INDEX IF NOT EXISTS idx_mcp_connections_token ON mcp_connections(token_hash); CREATE TABLE IF NOT EXISTS app_settings (id TEXT PRIMARY KEY, payload TEXT NOT NULL);`); err != nil {
 		conn.Close()
 		return nil, err
@@ -110,7 +114,7 @@ func (d *DB) ReplaceGitHubData(orgs []Organization, repos []Repository) error {
 
 // ListProjects exposes local projects plus GitHub repositories as ready-to-open projects.
 func (d *DB) ListProjects() ([]Project, error) {
-	rows, err := d.Query(`SELECT CAST(github_id AS TEXT),name,'','',html_url,CAST(github_id AS TEXT),'active',0,'',updated_at,updated_at FROM github_repositories ORDER BY updated_at DESC`)
+	rows, err := d.Query(`SELECT CAST(g.github_id AS TEXT),g.name,COALESCE(w.local_path,''),'',g.html_url,CAST(g.github_id AS TEXT),'active',0,'',g.updated_at,g.updated_at FROM github_repositories g LEFT JOIN project_worktrees w ON w.project_id=CAST(g.github_id AS TEXT) ORDER BY g.updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +132,7 @@ func (d *DB) ListProjects() ([]Project, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	localRows, err := d.Query(`SELECT id,name,path,description,github_url,github_repo_id,status,progress,icon_color,created,updated FROM projects ORDER BY updated DESC`)
+	localRows, err := d.Query(`SELECT p.id,p.name,COALESCE(w.local_path,p.path),p.description,p.github_url,p.github_repo_id,p.status,p.progress,p.icon_color,p.created,p.updated FROM projects p LEFT JOIN project_worktrees w ON w.project_id=p.id ORDER BY p.updated DESC`)
 	if err != nil {
 		return nil, err
 	}

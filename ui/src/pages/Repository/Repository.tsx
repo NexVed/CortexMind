@@ -1,4 +1,4 @@
-import { Component, For, createResource, Show, createSignal } from 'solid-js';
+import { Component, For, createResource, Show, createSignal, createEffect } from 'solid-js';
 import { useParams } from '@solidjs/router';
 import {
   Github, Eye, GitFork, Star, ChevronDown, GitBranch, Tag, Search, Plus, Code, MoreHorizontal,
@@ -6,7 +6,7 @@ import {
   Sparkles, ScanSearch, Copy, Network, FileKey, Layers, HardDrive, Clock, Scan
 } from 'lucide-solid';
 import { useProject, useScanProject } from '../../api/queries';
-import { getRepositoryInsights, getRepositoryView, getRepositoryImage, type RepositoryView } from '../../api/client';
+import { getRepositoryInsights, getRepositoryView, getRepositoryImage, scanWorkingTree, type RepositoryView, type WorkingTreeChanges } from '../../api/client';
 import { settings } from '../../api/settings';
 import './Repository.css';
 async function prepareReadme(view: RepositoryView, projectId: string): Promise<string> {
@@ -66,6 +66,9 @@ export const RepositoryPage: Component = () => {
   const scanM = useScanProject();
   const [isScanning, setIsScanning] = createSignal(false);
   const [scanError, setScanError] = createSignal('');
+  const [localPath, setLocalPath] = createSignal<string | null>(null);
+  const [workingChanges, setWorkingChanges] = createSignal<WorkingTreeChanges | null>(null);
+  createEffect(() => { projectId(); setLocalPath(null); setWorkingChanges(null); });
   const [insights, { refetch: refetchInsights }] = createResource(projectId, async (id) => id ? getRepositoryInsights(id) : null);
   const formatSize = (bytes?: number) => { if (!bytes) return '—'; const units = ['B', 'KB', 'MB', 'GB']; let value = bytes; let index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; };
 
@@ -81,6 +84,18 @@ export const RepositoryPage: Component = () => {
     } finally {
       setIsScanning(false);
     }
+  };
+
+  const handleLocalScan = async () => {
+    setIsScanning(true);
+    setScanError('');
+    setWorkingChanges(null);
+    try {
+      const result = await scanWorkingTree(projectId(), localPath()?.trim() || project()?.path || '');
+      setWorkingChanges(result.changes);
+      await Promise.all([projectQuery.refetch(), refetchInsights()]);
+    } catch (err: any) { setScanError(err?.message || 'Local checkout scan failed'); }
+    finally { setIsScanning(false); }
   };
 
   const [repoInfo] = createResource(
@@ -224,10 +239,22 @@ export const RepositoryPage: Component = () => {
             <div class="ai-card">
               <div class="ai-card-icon-wrap bg-red-light"><Copy size={18} class="text-red" /></div>
               <div class="ai-card-content">
-                <h4>Clone Repository</h4>
-                <p>Clone this repository to your workspace to start working with AI.</p>
+                <h4>Local checkout</h4>
+                <p>Scan the folder where you cloned this repo to review changes before pushing. This updates MCP's code graph.</p>
               </div>
-              <button class="btn secondary w-full"><Copy size={14} /> Clone Repo</button>
+              <form class="working-tree-form" onSubmit={(event) => { event.preventDefault(); void handleLocalScan(); }}>
+                <label for="checkout-path">Cloned repository folder</label>
+                <input id="checkout-path" value={localPath() ?? project()?.path ?? ''} onInput={(event) => setLocalPath(event.currentTarget.value)} placeholder="C:\Users\you\source\repo" disabled={isScanning()} />
+                <button type="submit" class="btn secondary w-full" disabled={isScanning()}><ScanSearch size={14} /> {isScanning() ? 'Scanning…' : 'Scan local changes'}</button>
+              </form>
+              <Show when={workingChanges()}>{(changes) => <div class="working-tree-summary" role="status">
+                <strong>{changes().branch} · {changes().files.length} changed files{changes().files_truncated ? '+' : ''}</strong>
+                <p>{changes().upstream ? `${changes().ahead} commits ahead · ${changes().behind} behind ${changes().upstream} (last fetched)` : 'No upstream configured; local changes shown.'}</p>
+                <For each={changes().files.slice(0, 20)}>{(file) => <div><code>{file.untracked ? '??' : file.index_status + file.worktree_status}</code> {file.path}</div>}</For>
+                <Show when={changes().files.length > 20}><p>More files are available through MCP.</p></Show>
+                <For each={changes().local_commits.slice(0, 5)}>{(commit) => <p>{commit}</p>}</For>
+                <p>MCP includes diffs for tracked changes. New files are listed; no pull or push is performed.</p>
+              </div>}</Show>
             </div>
             
 

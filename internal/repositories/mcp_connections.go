@@ -23,6 +23,11 @@ type MCPConnection struct {
 	Endpoint   string `json:"endpoint"`
 }
 
+// AllProjects grants access to current and future projects without mixing their memories.
+const AllProjects = "*"
+
+func (c MCPConnection) AllProjects() bool { return c.ProjectID == AllProjects }
+
 type MCPConnectionRepository struct{ DB *database.DB }
 
 func (r MCPConnectionRepository) Create(connection MCPConnection, token string) (*MCPConnection, error) {

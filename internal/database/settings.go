@@ -50,7 +50,7 @@ func (d *DB) ResetData() error {
 		return err
 	}
 	defer tx.Rollback()
-	for _, table := range []string{"active_session", "mcp_connections", "local_records", "repository_scans", "code_graphs", "projects", "github_repositories", "github_organizations", "app_settings", "users"} {
+	for _, table := range []string{"active_session", "mcp_connections", "local_records", "repository_scans", "code_graphs", "project_worktrees", "projects", "github_repositories", "github_organizations", "app_settings", "users"} {
 		var count int
 		if err = tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil {
 			return err

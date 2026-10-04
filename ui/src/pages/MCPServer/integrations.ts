@@ -156,7 +156,7 @@ export const PLATFORMS: PlatformIntegration[] = [
     language: 'text',
     requiresPublicUrl: true,
     build: (endpoint, token) =>
-      `Server URL : ${endpoint.replace('http://127.0.0.1:8090', 'https://<your-public-tunnel>')}\nAuth header: Authorization: Bearer ${token}`,
+      `Server URL : ${endpoint.replace(/^http:\/\/(?:127\.0\.0\.1|localhost):\d+/, 'https://<your-public-tunnel>')}\nAuth header: Authorization: Bearer ${token}`,
     steps: [
       'Claude.ai only connects to MCP servers reachable over public HTTPS — expose CORTEX with a tunnel (e.g. cloudflared or ngrok) pointing at /mcp.',
       'Settings → Connectors → Add custom connector → paste the public HTTPS URL.',
@@ -173,7 +173,7 @@ export const PLATFORMS: PlatformIntegration[] = [
     language: 'text',
     requiresPublicUrl: true,
     build: (endpoint, token) =>
-      `Server URL : ${endpoint.replace('http://127.0.0.1:8090', 'https://<your-public-tunnel>')}\nAuth header: Authorization: Bearer ${token}`,
+      `Server URL : ${endpoint.replace(/^http:\/\/(?:127\.0\.0\.1|localhost):\d+/, 'https://<your-public-tunnel>')}\nAuth header: Authorization: Bearer ${token}`,
     steps: [
       'Enable Developer mode / Connectors in ChatGPT settings (availability depends on plan).',
       'Expose CORTEX over public HTTPS with a tunnel, then add it as a custom MCP connector using that URL.',
@@ -276,5 +276,5 @@ export function getPlatform(id: string): PlatformIntegration | undefined {
 
 /** Builds the config snippet, using a placeholder when the token is unknown. */
 export function buildSnippet(platform: PlatformIntegration, endpoint: string, token?: string): string {
-  return platform.build(endpoint || 'http://127.0.0.1:8090/mcp', token || TOKEN_PLACEHOLDER);
+  return platform.build(endpoint || 'http://127.0.0.1:47831/mcp', token || TOKEN_PLACEHOLDER);
 }

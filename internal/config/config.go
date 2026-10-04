@@ -31,6 +31,9 @@ type ServerConfig struct {
 // DefaultGitHubClientID is public by design and identifies the CortexMind desktop OAuth app.
 const DefaultGitHubClientID = "Ov23liIGsZJLehp5Dez2"
 
+// DefaultPort avoids the ports commonly used by local web development servers.
+const DefaultPort = 47831
+
 type GitHubConfig struct {
 	ClientID string `mapstructure:"client_id"`
 }
@@ -125,8 +128,8 @@ func setDefaults(v *viper.Viper) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Port:    8090,
-			MCPPort: 8091,
+			Port:    DefaultPort,
+			MCPPort: DefaultPort + 1,
 			DataDir: "~/.cortex",
 		},
 		GitHub: GitHubConfig{ClientID: DefaultGitHubClientID},

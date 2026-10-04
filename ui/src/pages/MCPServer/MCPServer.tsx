@@ -38,9 +38,11 @@ import {
   type PlatformIntegration,
 } from './integrations';
 import './MCPServer.css';
-import { selectedProjectId } from '../../api/projectSelection';
 
 const availableTools = [
+  { name: 'cortex_list_projects', desc: 'Discover accessible projects and their local checkout paths.', category: 'PROJECTS', icon: Box, colorClass: 'purple' },
+  { name: 'cortex_scan_working_tree', desc: 'Scan your local clone, refresh the code graph, and review uncommitted changes and local commits before pushing.', category: 'SCAN', icon: RefreshCcw, colorClass: 'pink' },
+  { name: 'cortex_get_working_tree_changes', desc: 'Read staged, unstaged, and untracked files plus bounded diffs. No pull or push.', category: 'REVIEW', icon: Activity, colorClass: 'blue' },
   { name: 'cortex_get_context', desc: "Load the project's profile, graph statistics and recent AI memory. Call this first.", category: 'MEMORY', icon: BrainCircuit, colorClass: 'purple' },
   { name: 'cortex_get_system_prompt', desc: 'Load and follow the saved project-specific instructions for the coding agent.', category: 'INSTRUCTIONS', icon: BookOpen, colorClass: 'pink' },
   { name: 'cortex_get_code_graph', desc: 'Query files, functions, classes, packages, and internal or external dependencies.', category: 'CODE GRAPH', icon: Box, colorClass: 'indigo' },
@@ -130,7 +132,7 @@ export const MCPServerPage: Component = () => {
   onCleanup(() => clearInterval(timer));
 
   const [showForm, setShowForm] = createSignal(false);
-  const [formProject, setFormProject] = createSignal(selectedProjectId());
+  const [formProject, setFormProject] = createSignal('*');
   const [formPlatform, setFormPlatform] = createSignal('cursor');
   const [formLabel, setFormLabel] = createSignal('');
   const [creating, setCreating] = createSignal(false);
@@ -139,14 +141,14 @@ export const MCPServerPage: Component = () => {
   const [error, setError] = createSignal('');
   const [guideFor, setGuideFor] = createSignal<string>(''); // connection id whose guide is open
 
-  const projectName = (id: string) => projects()?.find((p) => p.id === id)?.name ?? '—';
+  const projectName = (id: string) => id === '*' ? 'All projects' : projects()?.find((p) => p.id === id)?.name ?? '—';
   const platformLabel = (id: string) => getPlatform(id)?.label ?? id;
 
   const openForm = () => {
     setCreated(null);
     setError('');
     setFormLabel('');
-    setFormProject(selectedProjectId());
+    setFormProject('*');
     setShowForm(true);
   };
 
@@ -158,14 +160,15 @@ export const MCPServerPage: Component = () => {
 
   const handleCreate = async () => {
     if (!formProject()) {
-      setError('Pick a project to bind this connection to.');
+      setError('Choose all projects or a specific project.');
       return;
     }
     setCreating(true);
     setError('');
     try {
       const conn = await createConnM.mutateAsync({
-        project_id: formProject(),
+        scope: formProject() === '*' ? 'all' : 'project',
+        project_id: formProject() === '*' ? undefined : formProject(),
         ide: formPlatform(),
         label: formLabel() || `${platformLabel(formPlatform())} · ${projectName(formProject())}`,
       });
@@ -260,7 +263,7 @@ export const MCPServerPage: Component = () => {
                 <div class="conn-empty">
                   <Plug />
                   <h4>No connections yet</h4>
-                  <p>Create a connection to link Claude Code, Cursor, VS Code, Gemini CLI and other AI clients to this project's memory.</p>
+                  <p>Create a connection to share project memory and local checkout scans with your AI clients.</p>
                   <button class="btn primary-pink" onClick={openForm}>
                     <Plus size={16} /> New Connection
                   </button>
@@ -378,11 +381,12 @@ export const MCPServerPage: Component = () => {
               {/* ── Form state ── */}
               <Show when={!created()}>
                 <div class="form-step">
-                  <div class="form-step-title">1 · Select a project</div>
+                  <div class="form-step-title">1 · Project access</div>
                   <select class="fancy-input" value={formProject()} onChange={(e) => setFormProject(e.currentTarget.value)}>
-                    <option value="" disabled>Choose a project…</option>
+                    <option value="*">All projects (current and future)</option>
                     <For each={projects()}>{(p) => <option value={p.id}>{p.name}</option>}</For>
                   </select>
+                  <p class="mcp-hint">All projects lets your agent discover projects and scan each local clone. Select one project to restrict access. Existing connections keep their original access; create a new connection to use all projects.</p>
                 </div>
 
                 <div class="form-step">

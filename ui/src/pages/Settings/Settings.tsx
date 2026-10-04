@@ -313,7 +313,7 @@ export const SettingsPage: Component = () => {
                         <div class="setting-info">
                           <span class="setting-label">{conn.label || conn.ide || 'Connection'}</span>
                           <span class="setting-description">
-                            IDE: {conn.ide} · Endpoint: {conn.endpoint || '—'} · Last used: {conn.last_used ? new Date(conn.last_used).toLocaleDateString() : 'never'}
+                            Access: {conn.project_id === '*' ? 'All projects' : 'One project'} · IDE: {conn.ide} · Endpoint: {conn.endpoint || '—'} · Last used: {conn.last_used ? new Date(conn.last_used).toLocaleDateString() : 'never'}
                           </span>
                         </div>
                         <div style={{ display: 'flex', 'align-items': 'center', gap: '8px' }}>

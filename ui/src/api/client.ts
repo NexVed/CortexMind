@@ -768,13 +768,34 @@ export async function listMCPConnections(): Promise<MCPConnection[]> {
 }
 
 export async function createMCPConnection(data: {
-  project_id: string;
+  scope?: 'all' | 'project';
+  project_id?: string;
   ide?: string;
   label?: string;
 }): Promise<MCPConnection> {
   return cortexFetch<MCPConnection>('/api/cortex/mcp/connections', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export interface WorkingTreeChanges {
+  repo_path: string;
+  branch: string;
+  head: string;
+  upstream: string;
+  ahead: number;
+  behind: number;
+  files: { path: string; old_path?: string; index_status: string; worktree_status: string; untracked: boolean }[];
+  local_commits: string[];
+  files_truncated: boolean;
+  commits_truncated: boolean;
+  note: string;
+}
+
+export async function scanWorkingTree(projectId: string, repoPath: string): Promise<{ scan: ScanRepoResult; changes: WorkingTreeChanges }> {
+  return cortexFetch(`/api/cortex/working-tree/${encodeURIComponent(projectId)}`, {
+    method: 'POST', body: JSON.stringify({ repo_path: repoPath, include_diff: false }),
   });
 }
 

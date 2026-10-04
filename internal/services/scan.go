@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/NexVed/Cortex/internal/config"
@@ -18,6 +19,7 @@ type ScanService struct {
 	DB          *database.DB
 	Config      *config.Config
 	GitHubToken string
+	ScanMutex   *sync.Mutex
 }
 type ScanResult struct {
 	Name         string   `json:"name"`
@@ -29,6 +31,10 @@ type ScanResult struct {
 }
 
 func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, error) {
+	if s.ScanMutex != nil {
+		s.ScanMutex.Lock()
+		defer s.ScanMutex.Unlock()
+	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	project, err := s.DB.Project(projectID)
@@ -36,7 +42,14 @@ func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, e
 		return nil, fmt.Errorf("project not found: %w", err)
 	}
 	path := project.Path
-	if repo, repoErr := s.DB.Repository(projectID); repoErr == nil {
+	localCheckout := false
+	if bound, err := s.DB.WorkingTreePath(projectID); err == nil && bound != "" {
+		localCheckout = true
+		path = bound
+		if _, err := s.ValidateWorkingTree(ctx, projectID, path); err != nil {
+			return nil, err
+		}
+	} else if repo, repoErr := s.DB.Repository(projectID); repoErr == nil {
 		if s.GitHubToken == "" && repo.Private {
 			return nil, fmt.Errorf("connect GitHub before scanning this private repository")
 		}
@@ -44,6 +57,14 @@ func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, e
 		if _, err = cgit.EnsureRepo(ctx, path, repo.CloneURL, s.GitHubToken); err != nil {
 			return nil, err
 		}
+	}
+	return s.indexDirectory(ctx, projectID, path, localCheckout)
+}
+
+func (s ScanService) indexDirectory(ctx context.Context, projectID, path string, respectGitIgnore bool) (*ScanResult, error) {
+	project, err := s.DB.Project(projectID)
+	if err != nil {
+		return nil, fmt.Errorf("project not found: %w", err)
 	}
 	if path == "" {
 		return nil, fmt.Errorf("select a local project directory before scanning")
@@ -57,6 +78,20 @@ func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, e
 		return nil, fmt.Errorf("project directory does not exist")
 	}
 	count := 0
+	var allowed map[string]bool
+	if respectGitIgnore {
+		listed, truncated, err := cgit.GitOutput(ctx, path, 8<<20, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+		if err != nil {
+			return nil, err
+		}
+		if truncated {
+			return nil, fmt.Errorf("Git file list exceeds 8 MiB; narrow the checkout before scanning")
+		}
+		allowed = map[string]bool{}
+		for _, name := range strings.Split(listed, "\x00") {
+			allowed[name] = true
+		}
+	}
 	langs := map[string]bool{}
 	files := []map[string]any{}
 	store := database.RecordStore{DB: s.DB}
@@ -77,13 +112,20 @@ func (s ScanService) Scan(ctx context.Context, projectID string) (*ScanResult, e
 			}
 			return nil
 		}
-		if !info.Mode().IsRegular() || info.Size() > int64(s.Config.Scanner.MaxFileSizeKB)*1024 {
+		limit := s.Config.Scanner.MaxFileSizeKB
+		if limit <= 0 {
+			limit = 512
+		}
+		if !info.Mode().IsRegular() || info.Size() > int64(limit)*1024 {
+			return nil
+		}
+		rel, _ := filepath.Rel(path, p)
+		if allowed != nil && !allowed[filepath.ToSlash(rel)] {
 			return nil
 		}
 		if lang := scanner.DetectLanguage(p); lang != "" {
 			count++
 			langs[lang] = true
-			rel, _ := filepath.Rel(path, p)
 			files = append(files, map[string]any{"project": projectID, "path": filepath.ToSlash(rel), "language": lang, "size_bytes": info.Size(), "last_indexed": time.Now().UTC().Format(time.RFC3339)})
 		}
 		return nil

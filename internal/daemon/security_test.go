@@ -142,6 +142,9 @@ func TestResetRevokesCredentialsAndClearsAllData(t *testing.T) {
 		t.Fatal(err)
 	}
 	userDirectory := t.TempDir()
+	if err = d.DB.BindWorkingTree(project.ID, userDirectory); err != nil {
+		t.Fatal(err)
+	}
 	if err = os.WriteFile(filepath.Join(userDirectory, "source.go"), []byte("package sample"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +152,7 @@ func TestResetRevokesCredentialsAndClearsAllData(t *testing.T) {
 	if res.Code != http.StatusOK {
 		t.Fatal(res.Body.String())
 	}
-	for _, table := range []string{"users", "active_session", "projects", "local_records", "mcp_connections", "repository_scans", "code_graphs", "app_settings"} {
+	for _, table := range []string{"users", "active_session", "projects", "local_records", "mcp_connections", "repository_scans", "code_graphs", "project_worktrees", "app_settings"} {
 		var count int
 		if err = d.DB.QueryRow(`SELECT COUNT(*) FROM ` + table).Scan(&count); err != nil || count != 0 {
 			t.Fatalf("reset left %s: %d (%v)", table, count, err)

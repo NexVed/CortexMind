@@ -59,4 +59,4 @@ go build -ldflags "-s -w" -o (Join-Path $root 'CortexMind.exe') ./cmd/cortexd
 if ($LASTEXITCODE) { throw "go build failed" }
 
 Write-Host "`nDone. -> $(Join-Path $root 'CortexMind.exe')" -ForegroundColor Green
-Write-Host "Run it (double-click or from a terminal); it serves the app and opens your browser at http://127.0.0.1:8090" -ForegroundColor Green
+Write-Host "Run it (double-click or from a terminal); it serves the app and opens your browser at http://127.0.0.1:47831 (or your configured server.port)" -ForegroundColor Green

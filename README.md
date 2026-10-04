@@ -17,7 +17,8 @@ page in your operating system's default browser.
 - View GitHub repository metadata, files, and README content through the authenticated backend.
 - Save tasks, handoffs, vault entries, agent memories, and session digests locally.
 - Generate a local system prompt from project memory and selected tasks and knowledge.
-- Connect an MCP client using a token restricted to one project.
+- Connect an MCP client to all projects, or restrict its token to one project.
+- Scan your actual local clone, including uncommitted changes, before pushing.
 - Resize the Windows desktop window from any edge or corner, maximize it, or use fullscreen.
 
 Scanning, prompts, and digests currently use local heuristics. Provider preferences
@@ -29,7 +30,7 @@ reports the active capabilities instead of treating a saved preference as runnin
 Project data is stored in SQLite. GitHub, Mistral, and local API credentials are kept
 in the operating system credential store: Windows Credential Manager, macOS
 Keychain, or the Linux Secret Service. GitHub requests send the GitHub token only to
-GitHub; AI clients receive only the project context exposed by their MCP connection.
+GitHub; AI clients receive the project context allowed by their MCP connection.
 
 ## Requirements
 
@@ -118,7 +119,7 @@ $env:CORTEX_DEV_ORIGIN = 'http://localhost:3000'
 go run ./cmd/cortexd
 ```
 
-Vite proxies `/api` and `/mcp` to port 8090. If the daemon uses another port, set
+Vite proxies `/api` and `/mcp` to port 47831. If the daemon uses another port, set
 `CORTEX_API_TARGET` before starting Vite, for example `http://127.0.0.1:8100`.
 Use relative API URLs in the production UI; it automatically uses the daemon's
 configured port. Remove `CORTEX_DEV_ORIGIN` for production runs.
@@ -138,7 +139,7 @@ Environment variables override configuration values.
 
 ```yaml
 server:
-  port: 8090
+  port: 47831
   data_dir: ~/.cortex
 
 scanner:
@@ -166,17 +167,20 @@ a separate connection token. JSON request bodies are limited to 2 MiB.
 1. Start the desktop app or daemon and keep it running.
 2. Create a local project or sign in with GitHub to import repositories. Scan the
    project if your agent needs its source graph.
-3. Open **MCP Server > New Connection**. Select the project and client, then create
+3. Open **MCP Server > New Connection**. Choose **All projects** (the default), or
+   a specific project to restrict access. Select your client, then create
    the connection. Settings' **New Connection** link opens this setup screen.
 4. Copy the generated token and client configuration. The token is displayed only
-   once and is restricted to the selected project.
+   once. All-project connections cover current and future projects; project
+   connections cover only the selected project. Existing tokens retain their scope;
+   create a new connection and replace your client's token to enable all projects.
 5. Save the configuration in the location shown by the app and restart your AI client.
 
 For Codex, add this to `%USERPROFILE%\.codex\config.toml`:
 
 ```toml
 [mcp_servers.cortex]
-url = "http://127.0.0.1:8090/mcp"
+url = "http://127.0.0.1:47831/mcp"
 http_headers = { Authorization = "Bearer YOUR_CORTEX_TOKEN" }
 ```
 
@@ -187,7 +191,7 @@ For VS Code / GitHub Copilot Agent mode, use `.vscode/mcp.json`:
   "servers": {
     "cortex": {
       "type": "http",
-      "url": "http://127.0.0.1:8090/mcp",
+      "url": "http://127.0.0.1:47831/mcp",
       "headers": { "Authorization": "Bearer YOUR_CORTEX_TOKEN" }
     }
   }
@@ -205,15 +209,58 @@ Verify the connection in PowerShell:
 $mcpToken = 'YOUR_CORTEX_TOKEN'
 $headers = @{ Authorization = "Bearer $mcpToken"; Accept = 'application/json, text/event-stream' }
 $body = @{ jsonrpc = '2.0'; id = 1; method = 'tools/list'; params = @{} } | ConvertTo-Json -Compress
-(Invoke-RestMethod -Uri 'http://127.0.0.1:8090/mcp' -Method Post -Headers $headers -ContentType 'application/json' -Body $body).result.tools.name
+(Invoke-RestMethod -Uri 'http://127.0.0.1:47831/mcp' -Method Post -Headers $headers -ContentType 'application/json' -Body $body).result.tools.name
 ```
 
-Tools include `cortex_get_system_prompt`, `cortex_get_context`, `cortex_get_code_graph`,
+Tools include `cortex_list_projects`, `cortex_scan_working_tree`,
+`cortex_get_working_tree_changes`, `cortex_get_system_prompt`, `cortex_get_context`, `cortex_get_code_graph`,
 `cortex_save_memory`, `cortex_list_memories`, `cortex_get_tasks`, and
 `cortex_summarize_session`. Start a session by reading the system prompt and context;
 save useful decisions and summarize the session before handing off work.
-`project_id` is optional in tool calls because the connection already specifies it.
-A different project ID is rejected. Delete a connection in the app to revoke its token.
+For all-project connections, call `cortex_list_projects` and pass the selected
+`project_id` to project tools. Memories, tasks, graphs, and prompts stay separate
+for each project. Restricted connections default to their bound project and reject
+other IDs. Delete a connection in the app to revoke its token.
+
+### Review a local clone before pushing
+
+Install Git for Windows and restart CortexMind if Git was added to PATH while the
+app was running. CortexMind must run on the same computer as the checkout.
+
+In the Repository page, enter the absolute cloned folder under **Local checkout**
+and choose **Scan local changes**. Alternatively, ask your MCP agent to call:
+
+```json
+{
+  "name": "cortex_scan_working_tree",
+  "arguments": {
+    "project_id": "YOUR_PROJECT_ID",
+    "repo_path": "C:\\Users\\you\\source\\your-repo",
+    "include_diff": true
+  }
+}
+```
+
+For all-project connections, `project_id` can be omitted when `repo_path` uniquely
+matches a project's saved path or GitHub `origin` remote. Otherwise, choose an ID
+from `cortex_list_projects`. The folder must be the Git checkout root; GitHub
+projects require a matching `origin` (HTTPS or SSH). Linked Git worktrees are supported.
+
+The scan refreshes the file index and code graph from the local files, honors Git
+ignore rules for untracked files, and remembers the checkout for subsequent scans.
+It works with a private clone without contacting GitHub. Results include branch,
+staged/unstaged/untracked file status, commits ahead/behind upstream, and local commit
+subjects. When requested, tracked changes against HEAD and local commit changes
+against upstream each include a patch capped at 64 KiB, with truncation flags.
+Untracked file contents are not included in patches; the agent can read those files
+in its workspace. Upstream comparisons use the last fetched local reference, so
+they do not guarantee the current remote state.
+
+Use `cortex_get_working_tree_changes` for a fresh review without rebuilding the
+index. After the first scan, omit `repo_path` to use the saved checkout. The ordinary
+**Scan Now** action also uses a registered checkout without pulling. This is an
+on-demand review: it does not install a Git hook or automatically block pushes.
+No fetch, pull, commit, or push is performed on the user's checkout.
 
 A remote web client cannot reach your computer's loopback address. The default
 server configuration supports clients running on the same computer.
@@ -251,10 +298,11 @@ retained in the source tree, but ConnectRPC services are not registered by this 
 | `/api/cortex/session-digest/{id}` | Generate a session digest |
 | `/api/cortex/session-digests/{id}` | List session digests |
 | `/api/cortex/providers` | Read or save provider preferences; keys are redacted |
-| `/api/cortex/mcp/connections` | List or create project-bound connections |
+| `/api/cortex/mcp/connections` | List or create all-project or project connections |
+| `POST /api/cortex/working-tree/{id}` | Scan and register a local checkout; report changes |
 | `DELETE /api/cortex/mcp/connections/{id}` | Revoke a connection |
 | `POST /api/cortex/reset` | Reset application data and revoke credentials |
-| `POST /mcp` | MCP JSON-RPC with a separate project-bound bearer token |
+| `POST /mcp` | MCP JSON-RPC with a separate scoped bearer token |
 
 ## Other desktop platforms
 
@@ -288,7 +336,10 @@ See the build scripts for their distribution and packaging requirements.
   error and retry. A failed pull is not silently scanned as current data.
 - **Local project cannot scan:** provide an existing directory path when creating it.
 - **MCP HTTP 401:** create a new connection and update the client's token.
-- **MCP project mismatch:** omit `project_id` or use the connection's selected project.
+- **MCP project mismatch:** use the bound project, or create an All projects connection.
+- **All-project tool needs a project:** call `cortex_list_projects`, then supply
+  `project_id`; checkout tools can also match an absolute `repo_path` automatically.
+- **Checkout origin mismatch:** select the correct project and cloned folder.
 - **Development origin rejected:** set `CORTEX_DEV_ORIGIN` to the exact Vite origin
   before starting cortexd. Use Vite's proxy for API requests.
 

@@ -3,7 +3,7 @@ import solidPlugin from 'vite-plugin-solid';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const target = env.CORTEX_API_TARGET || 'http://127.0.0.1:8090';
+  const target = env.CORTEX_API_TARGET || 'http://127.0.0.1:47831';
   return {
   plugins: [solidPlugin()],
   server: {
