@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# AppImage entrypoint. Resolves this AppDir and launches the bundled binary.
+set -euo pipefail
+SELF="$(readlink -f "$0")"
+HERE="${SELF%/*}"
+export PATH="${HERE}/usr/bin:${PATH:-}"
+# Do not prepend AppDir to XDG_DATA_DIRS: that would hide the user's default
+# browser when GitHub login calls xdg-open. The app window stays native.
+exec "${HERE}/usr/bin/CortexMind" "$@"

@@ -56,7 +56,15 @@ export const LoginPage: Component = () => {
         <div class="login-device-flow">
           <span>Enter this code on GitHub</span>
           <code>{deviceCode()}</code>
-          <a href={verificationURL()} target="_blank" rel="noreferrer">Open GitHub verification</a>
+          <a href={verificationURL()} rel="noreferrer" onClick={(event) => {
+            if (!isWailsDesktop()) return;
+            event.preventDefault();
+            void fetch('/api/auth/github/open-browser', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: verificationURL() }),
+            });
+          }}>Open GitHub verification</a>
         </div>
       </Show>
       <div class="login-divider">or stay offline</div>

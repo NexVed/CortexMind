@@ -43,6 +43,7 @@ func (d *Daemon) Start() error {
 	mux.HandleFunc("/api/cortex/mcp/connections/{id}/status", d.mcpConnectionStatus)
 	mux.HandleFunc("/api/auth/session", d.session)
 	mux.HandleFunc("/api/auth/github/start", d.startGitHub)
+	mux.HandleFunc("/api/auth/github/open-browser", d.openGitHubBrowser)
 	mux.HandleFunc("/api/auth/offline", d.offline)
 	mux.HandleFunc("/api/auth/logout", d.logout)
 	mux.HandleFunc("/api/projects", d.projects)
@@ -105,15 +106,31 @@ func (d *Daemon) startGitHub(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err, http.StatusBadRequest)
 		return
 	}
-	// The native desktop shell requests this explicitly so GitHub opens in the
-	// user's configured browser, never in its embedded webview.
+	// Desktop login asks us to open GitHub in the user's default browser.
+	// The CortexMind window itself never leaves the native webview.
 	if r.URL.Query().Get("open_browser") == "1" {
-		if err := browser.OpenURL(v.URL); err != nil {
-			// Keep the device-flow response available as a manual fallback when
-			// the operating system cannot launch its configured browser.
-		}
+		_ = browser.OpenGitHubLogin(v.URL)
 	}
 	writeJSON(w, http.StatusOK, v)
+}
+
+func (d *Daemon) openGitHubBrowser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	var input struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeError(w, fmt.Errorf("invalid request"), http.StatusBadRequest)
+		return
+	}
+	if err := browser.OpenGitHubLogin(input.URL); err != nil {
+		writeError(w, err, http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 func (d *Daemon) offline(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

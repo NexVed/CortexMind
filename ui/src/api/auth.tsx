@@ -80,8 +80,8 @@ export const AuthProvider: Component<{ children: JSX.Element }> = (props) => {
       const start = await request(endpoint, { method: 'POST' }) as DeviceStartResponse;
       setDeviceCode(start.user_code);
       setVerificationURL(start.url);
-      // Web builds retain the normal browser behaviour. The native desktop
-      // shell asks the daemon to use the user's default browser instead.
+      // Desktop: the daemon already opened the user's default browser.
+      // Web: open a tab. Never navigate the CortexMind window to GitHub.
       if (!isWailsDesktop()) window.open(start.url, '_blank', 'noopener,noreferrer');
 
       const deadline = Date.now() + Math.max(60, start.expires_in || 900) * 1000;

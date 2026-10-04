@@ -21,6 +21,9 @@
 #   - macOS:  Xcode command line tools (xcode-select --install)
 #
 # Usage:   ./build/build-desktop.sh
+#
+# On Linux this also packages a Type-2 AppImage (and a .tar.gz) into build/dist/.
+# From Windows, use build-linux.ps1 (Docker) to produce the same artifacts.
 # ============================================================
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,7 +32,7 @@ cd "$root"
 step() { printf '\n==> %s\n' "$1"; }
 
 step "Building the UI (vite)"
-( cd ui && { [ -d node_modules ] || npm install; } && npm run build )
+( cd ui && { [ -d node_modules/vite ] || npm install; } && npm run build )
 
 step "Embedding UI into internal/web/dist"
 dist_dst="internal/web/dist"
@@ -39,9 +42,15 @@ cp -R ui/dist/. "$dist_dst"/
 
 step "Compiling the Wails desktop shell -> build/dist/CortexMind"
 mkdir -p build/dist
-# Linux uses webkit2gtk 4.1 headers; drop this tag if your distro ships 4.0.
+# Linux uses GTK3 + webkit2gtk 4.1 (Wails -tags gtk3) so the AppImage runs on
+# Ubuntu 22.04+ and equivalent distros. Default Wails v3 is GTK4/WebKitGTK 6.
 tags=""
-if [ "$(uname -s)" = "Linux" ]; then tags="-tags webkit2_41"; fi
+if [ "$(uname -s)" = "Linux" ]; then tags="-tags gtk3"; fi
 CGO_ENABLED=1 go build $tags -ldflags "-s -w" -o build/dist/CortexMind ./cmd/cortexmind
+
+if [ "$(uname -s)" = "Linux" ]; then
+  step "Packaging Linux AppImage + portable tarball"
+  "$root/build/linux/package-appimage.sh"
+fi
 
 step "Done. -> build/dist/CortexMind"

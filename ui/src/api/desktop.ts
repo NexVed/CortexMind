@@ -20,8 +20,24 @@ function bridge(): WailsBridge | undefined {
   return (window as unknown as { _wails?: WailsBridge })._wails;
 }
 
+const DESKTOP_FLAG = 'cortex.desktop';
+const PLATFORM_FLAG = 'cortex.platform';
+
+function persistDesktopFromURL(): void {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('desktop')) sessionStorage.setItem(DESKTOP_FLAG, '1');
+  const platform = params.get('platform');
+  if (platform === 'windows' || platform === 'darwin' || platform === 'linux') {
+    sessionStorage.setItem(PLATFORM_FLAG, platform);
+    sessionStorage.setItem(DESKTOP_FLAG, '1');
+  }
+}
+
 function detectWails(): boolean {
-  return new URLSearchParams(window.location.search).has('desktop')
+  persistDesktopFromURL();
+  return sessionStorage.getItem(DESKTOP_FLAG) === '1'
+    || new URLSearchParams(window.location.search).has('desktop')
     || typeof bridge()?.invoke === 'function'
     || /wails/i.test(navigator.userAgent);
 }
@@ -53,7 +69,8 @@ export type DesktopPlatform = 'windows' | 'darwin' | 'linux' | 'web';
 // The native shell supplies its build target explicitly. User-agent detection
 // remains only as a useful fallback for development builds.
 export function desktopPlatform(): DesktopPlatform {
-  const platform = new URLSearchParams(window.location.search).get('platform');
+  const fromQuery = new URLSearchParams(window.location.search).get('platform');
+  const platform = fromQuery || sessionStorage.getItem(PLATFORM_FLAG);
   if (platform === 'windows' || platform === 'darwin' || platform === 'linux') return platform;
   if (!isWailsDesktop()) return 'web';
   if (/mac/i.test(navigator.platform)) return 'darwin';
@@ -63,6 +80,31 @@ export function desktopPlatform(): DesktopPlatform {
 
 if (typeof document !== 'undefined') {
   document.documentElement.dataset.desktopPlatform = desktopPlatform();
+  document.addEventListener('click', (event) => {
+    if (!isWailsDesktop()) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const link = target.closest('a[href]');
+    if (!(link instanceof HTMLAnchorElement)) return;
+    let url: URL;
+    try {
+      url = new URL(link.href, window.location.origin);
+    } catch {
+      return;
+    }
+    if (url.origin === window.location.origin) return;
+    const path = url.pathname.replace(/\/$/, '');
+    const githubLogin = url.protocol === 'https:'
+      && (url.hostname === 'github.com' || url.hostname === 'www.github.com')
+      && (path === '/login/device' || path.startsWith('/login/device/'));
+    if (!githubLogin) return;
+    event.preventDefault();
+    void fetch('/api/auth/github/open-browser', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url.toString() }),
+    });
+  }, true);
 }
 
 // emitWindowControl fires a bare Wails event that the Go side listens for to

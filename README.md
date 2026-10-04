@@ -40,6 +40,7 @@ memory, and tokens never leave your machine.
 - [Running the UI](#running-the-ui)
 - [Building the Windows App](#building-the-windows-app)
 - [Building macOS and Linux Releases](#building-macos-and-linux-releases)
+- [Linux AppImage (universal)](#linux-appimage-universal)
 - [Configuration](#configuration)
 - [The Workflow](#the-workflow)
 - [HTTP & MCP API](#http--mcp-api)
@@ -369,12 +370,58 @@ xcode-select --install
 # Debian/Ubuntu:
 sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
 ./build/build-desktop.sh
-# output: build/dist/CortexMind
+# output:
+#   build/dist/CortexMind
+#   build/dist/CortexMind-0.1.0-x86_64.AppImage
+#   build/dist/CortexMind-0.1.0-linux-x86_64.tar.gz
 ```
 
 The same script detects the host platform and refuses to cross-package it: distribute the binary
-produced on macOS only as the macOS release, and the binary produced on Linux only as the Linux
-release.
+produced on macOS only as the macOS release, and the Linux AppImage produced on Linux (or via
+Docker) only as the Linux release.
+
+## Linux AppImage (universal)
+
+[AppImage](https://appimage.org) is the distro-agnostic Linux format: one file, no package manager,
+works across Ubuntu, Fedora, Arch, Mint, Debian, and similar. Give users:
+
+```
+CortexMind-0.1.0-x86_64.AppImage
+```
+
+On Linux:
+
+```bash
+chmod +x CortexMind-0.1.0-x86_64.AppImage
+./CortexMind-0.1.0-x86_64.AppImage
+```
+
+The window uses the system **WebKitGTK 4.1** webview (same as other Wails/GTK apps). If it does
+not open, install that runtime:
+
+```bash
+# Debian / Ubuntu / Mint
+sudo apt install libwebkit2gtk-4.1-0 libgtk-3-0
+
+# Fedora
+sudo dnf install webkit2gtk4.1 gtk3
+
+# Arch
+sudo pacman -S webkit2gtk-4.1 gtk3
+```
+
+### Build the AppImage from Windows (Docker)
+
+Wails cannot cross-compile the Linux webview from Windows. With Docker Desktop running:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build-linux.ps1
+```
+
+This builds inside Ubuntu 22.04 (glibc 2.35, so the AppImage runs on most current distros) and
+writes the artifacts to `build/dist/`.
+
+A portable `.tar.gz` is produced next to the AppImage for hosts that prefer a plain directory.
 
 ## Configuration
 

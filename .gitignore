@@ -21,6 +21,7 @@ cmd/cortexd/resource.syso
 cmd/cortexmind/resource_windows_amd64.syso
 build/windows/icon.ico
 build/dist/
+build/linux/.cache/
 internal/web/dist/*
 !internal/web/dist/.gitkeep
 

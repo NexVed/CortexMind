@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=CortexMind
+Comment=The Shared Brain For AI Development
+Exec=CortexMind
+Icon=cortexmind
+Terminal=false
+Categories=Development;
+StartupWMClass=CortexMind
+Keywords=AI;MCP;code;memory;
